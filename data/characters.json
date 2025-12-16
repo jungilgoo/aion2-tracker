@@ -1,0 +1,18 @@
+{
+  "characters": [
+    {
+      "name": "콕",
+      "passwordHash": "test-hash",
+      "server": "마족 루미엘",
+      "history": [
+        {
+          "itemLevel": "2829",
+          "date": "2025-12-16T05:23:48.602Z"
+        }
+      ],
+      "itemLevel": "2829",
+      "lastUpdated": "2025-12-16T05:23:48.602Z",
+      "url": "https://aion2.plaync.com/ko-kr/characters/2004/8uG90RpNbMFNJtZ0BKzyZcR6YFPP_Eg-VUFHTve2Z6Y%3D"
+    }
+  ]
+}
