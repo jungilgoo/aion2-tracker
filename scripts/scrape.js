@@ -1,5 +1,5 @@
 const { chromium } = require('playwright');
-const { put, head } = require('@vercel/blob');
+const { put, head, del } = require('@vercel/blob');
 
 // Blob 이름
 const BLOB_NAME = 'characters-data';
@@ -113,7 +113,23 @@ async function readCharacterData() {
  * 캐릭터 데이터 Blob에 저장
  */
 async function saveCharacterData(data) {
-  await put(`${BLOB_NAME}.json`, JSON.stringify(data, null, 2), {
+  const blobName = `${BLOB_NAME}.json`;
+
+  // 기존 Blob이 있으면 삭제
+  try {
+    const existing = await head(blobName);
+    if (existing && existing.url) {
+      console.log('   🗑️  Deleting existing blob...');
+      await del(existing.url);
+    }
+  } catch (error) {
+    // Blob이 없으면 무시
+    console.log('   ℹ️  No existing blob to delete');
+  }
+
+  // 새 Blob 생성
+  console.log('   💾 Creating new blob...');
+  await put(blobName, JSON.stringify(data, null, 2), {
     access: 'public',
     contentType: 'application/json',
   });
