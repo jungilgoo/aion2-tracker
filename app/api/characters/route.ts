@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { put, head } from '@vercel/blob';
+import { put, head, del } from '@vercel/blob';
 
 const BLOB_NAME = 'characters-data';
 
@@ -41,8 +41,23 @@ async function readData(): Promise<CharacterData> {
 }
 
 async function writeData(data: CharacterData): Promise<void> {
+  const blobName = `${BLOB_NAME}.json`;
+
+  // 기존 Blob이 있으면 삭제
+  try {
+    const existing = await head(blobName);
+    if (existing && existing.url) {
+      console.log('Deleting existing blob:', existing.url);
+      await del(existing.url);
+    }
+  } catch (error) {
+    // Blob이 없으면 무시
+    console.log('No existing blob to delete');
+  }
+
   // Blob Storage에 JSON 데이터 저장
-  await put(`${BLOB_NAME}.json`, JSON.stringify(data, null, 2), {
+  console.log('Creating new blob');
+  await put(blobName, JSON.stringify(data, null, 2), {
     access: 'public',
     contentType: 'application/json',
   });
