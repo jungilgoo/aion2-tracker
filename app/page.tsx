@@ -25,15 +25,19 @@ async function getCharacters(): Promise<CharacterData> {
     // Blob 존재 여부 확인
     const blobInfo = await head(`${BLOB_NAME}.json`);
 
-    if (!blobInfo) {
+    if (!blobInfo || !blobInfo.url) {
+      console.log('No blob found, returning empty data');
       return { characters: [] };
     }
 
-    // Blob에서 데이터 읽기
-    const response = await fetch(blobInfo.url);
+    // Blob에서 데이터 읽기 (캐시 무효화)
+    const response = await fetch(blobInfo.url, {
+      cache: 'no-store',
+    });
     const content = await response.text();
     return JSON.parse(content);
   } catch (error) {
+    console.log('Error fetching characters:', error);
     return { characters: [] };
   }
 }
@@ -66,5 +70,5 @@ export default async function Home() {
   );
 }
 
-// Revalidate every hour
-export const revalidate = 3600;
+// 항상 최신 데이터 표시 (캐시 비활성화)
+export const revalidate = 0;
