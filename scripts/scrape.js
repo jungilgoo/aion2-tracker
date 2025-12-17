@@ -1,9 +1,8 @@
 const { chromium } = require('playwright');
-const fs = require('fs');
-const path = require('path');
+const { put, head } = require('@vercel/blob');
 
-// 캐릭터 데이터 파일 경로
-const DATA_FILE = path.join(__dirname, '../data/characters.json');
+// Blob 이름
+const BLOB_NAME = 'characters-data';
 
 // 서버 정보 (마족 루미엘 = race:2, serverId:2004)
 const SERVER_CONFIG = {
@@ -88,25 +87,37 @@ async function scrapeCharacter(page, characterName) {
 }
 
 /**
- * 캐릭터 데이터 파일 읽기
+ * 캐릭터 데이터 Blob에서 읽기
  */
-function readCharacterData() {
-  if (!fs.existsSync(DATA_FILE)) {
+async function readCharacterData() {
+  try {
+    // Blob 존재 여부 확인
+    const blobInfo = await head(`${BLOB_NAME}.json`);
+
+    if (!blobInfo) {
+      return { characters: [] };
+    }
+
+    // Blob에서 데이터 읽기
+    const response = await fetch(blobInfo.url);
+    const content = await response.text();
+    return JSON.parse(content);
+  } catch (error) {
+    // Blob이 없거나 에러 발생 시 빈 배열 반환
+    console.log('   ⚠️  No existing data, starting fresh');
     return { characters: [] };
   }
-  const content = fs.readFileSync(DATA_FILE, 'utf-8');
-  return JSON.parse(content);
 }
 
 /**
- * 캐릭터 데이터 파일 저장
+ * 캐릭터 데이터 Blob에 저장
  */
-function saveCharacterData(data) {
-  const dataDir = path.dirname(DATA_FILE);
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+async function saveCharacterData(data) {
+  await put(`${BLOB_NAME}.json`, JSON.stringify(data, null, 2), {
+    access: 'public',
+    contentType: 'application/json',
+  });
+  console.log('   ✅ Data saved to Blob Storage');
 }
 
 /**
@@ -117,7 +128,7 @@ async function main() {
   console.log(`📅 ${new Date().toLocaleString('ko-KR')}\n`);
 
   // 캐릭터 데이터 읽기
-  const data = readCharacterData();
+  const data = await readCharacterData();
   console.log(`📋 Total characters to track: ${data.characters.length}\n`);
 
   if (data.characters.length === 0) {
@@ -165,7 +176,7 @@ async function main() {
   await browser.close();
 
   // 결과 저장
-  saveCharacterData(data);
+  await saveCharacterData(data);
 
   console.log('\n✅ Scraping completed!\n');
   console.log('📊 Results:');

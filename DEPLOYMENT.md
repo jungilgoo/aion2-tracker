@@ -18,7 +18,7 @@ git remote add origin https://github.com/YOUR_USERNAME/aion2-tracker.git
 git push -u origin main
 ```
 
-## 2. Vercel 배포
+## 2. Vercel 배포 및 Blob Storage 설정
 
 ### 방법 1: Vercel CLI 사용
 ```bash
@@ -35,15 +35,45 @@ vercel
    - `PASSWORD_SALT`: 랜덤한 문자열 (예: `your-secret-salt-change-this`)
 5. Deploy 클릭
 
+### 🔵 Vercel Blob Storage 설정 (중요!)
+
+**자동 설정 (배포 후):**
+1. Vercel 프로젝트 대시보드로 이동
+2. **Storage 탭** 클릭
+3. **"Create Database"** 버튼 클릭
+4. **"Blob"** 선택
+5. 데이터베이스 이름 입력 (예: `aion2-characters`)
+6. **Create** 클릭
+
+완료되면 `BLOB_READ_WRITE_TOKEN` 환경 변수가 자동으로 생성됩니다.
+
+**확인 방법:**
+- Settings → Environment Variables에서 `BLOB_READ_WRITE_TOKEN` 확인
+- 이 토큰은 자동으로 프로덕션 환경에 주입됨
+
 ## 3. GitHub Actions 설정
 
 저장소 Settings에서:
+
+### 3-1. Actions 권한 설정
 1. **Actions > General**
    - "Allow all actions and reusable workflows" 선택
-   
+
 2. **Actions > General > Workflow permissions**
    - "Read and write permissions" 선택
    - "Allow GitHub Actions to create and approve pull requests" 체크
+
+### 3-2. Secrets 설정 (중요!)
+1. **Settings > Secrets and variables > Actions** 이동
+2. **"New repository secret"** 클릭
+3. 다음 Secret 추가:
+   - Name: `BLOB_READ_WRITE_TOKEN`
+   - Value: Vercel의 `BLOB_READ_WRITE_TOKEN` 값 복사해서 붙여넣기
+
+**토큰 가져오기:**
+- Vercel 프로젝트 → Settings → Environment Variables
+- `BLOB_READ_WRITE_TOKEN` 값 복사
+- GitHub Secrets에 추가
 
 ## 4. 테스트
 

@@ -1,7 +1,8 @@
-import { promises as fs } from 'fs';
-import path from 'path';
+import { head } from '@vercel/blob';
 import CharacterList from './components/CharacterList';
 import AddCharacter from './components/AddCharacter';
+
+const BLOB_NAME = 'characters-data';
 
 interface Character {
   name: string;
@@ -21,9 +22,17 @@ interface CharacterData {
 
 async function getCharacters(): Promise<CharacterData> {
   try {
-    const filePath = path.join(process.cwd(), 'data', 'characters.json');
-    const fileContents = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(fileContents);
+    // Blob 존재 여부 확인
+    const blobInfo = await head(`${BLOB_NAME}.json`);
+
+    if (!blobInfo) {
+      return { characters: [] };
+    }
+
+    // Blob에서 데이터 읽기
+    const response = await fetch(blobInfo.url);
+    const content = await response.text();
+    return JSON.parse(content);
   } catch (error) {
     return { characters: [] };
   }

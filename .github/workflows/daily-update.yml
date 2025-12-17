@@ -26,11 +26,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run scraper
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
         run: npm run scrape
 
-      - name: Commit and push if changed
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add data/characters.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 자동 업데이트: $(date +'%Y-%m-%d %H:%M')" && git push)
+      # Blob Storage를 사용하므로 Git 커밋은 필요 없음
+      # 데이터는 Vercel Blob에 자동 저장됨

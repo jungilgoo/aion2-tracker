@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
+import { put, head } from '@vercel/blob';
 import crypto from 'crypto';
 
-const DATA_FILE = path.join(process.cwd(), 'data', 'characters.json');
+const BLOB_NAME = 'characters-data';
 const PASSWORD_SALT = process.env.PASSWORD_SALT || 'aion2-tracker-salt';
 
 function hashPassword(password: string): string {
@@ -32,15 +31,29 @@ interface CharacterData {
 
 async function readData(): Promise<CharacterData> {
   try {
-    const content = await fs.readFile(DATA_FILE, 'utf-8');
+    // Blob 존재 여부 확인
+    const blobInfo = await head(`${BLOB_NAME}.json`);
+
+    if (!blobInfo) {
+      return { characters: [] };
+    }
+
+    // Blob에서 데이터 읽기
+    const response = await fetch(blobInfo.url);
+    const content = await response.text();
     return JSON.parse(content);
   } catch (error) {
+    // Blob이 없거나 에러 발생 시 빈 배열 반환
     return { characters: [] };
   }
 }
 
 async function writeData(data: CharacterData): Promise<void> {
-  await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  // Blob Storage에 JSON 데이터 저장
+  await put(`${BLOB_NAME}.json`, JSON.stringify(data, null, 2), {
+    access: 'public',
+    contentType: 'application/json',
+  });
 }
 
 // POST - 캐릭터 추가
