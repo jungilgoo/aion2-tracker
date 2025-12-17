@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { put, head } from '@vercel/blob';
-import crypto from 'crypto';
 
 const BLOB_NAME = 'characters-data';
-const PASSWORD_SALT = process.env.PASSWORD_SALT || 'aion2-tracker-salt';
-
-function hashPassword(password: string): string {
-  return crypto
-    .createHmac('sha256', PASSWORD_SALT)
-    .update(password)
-    .digest('hex');
-}
 
 interface Character {
   name: string;
@@ -18,7 +9,6 @@ interface Character {
   server?: string;
   lastUpdated?: string;
   url?: string;
-  passwordHash: string;
   history?: Array<{
     itemLevel: string;
     date: string;
@@ -59,11 +49,11 @@ async function writeData(data: CharacterData): Promise<void> {
 // POST - 캐릭터 추가
 export async function POST(request: NextRequest) {
   try {
-    const { name, password } = await request.json();
+    const { name } = await request.json();
 
-    if (!name || !password) {
+    if (!name) {
       return NextResponse.json(
-        { message: '캐릭터 이름과 비밀번호가 필요합니다' },
+        { message: '캐릭터 이름이 필요합니다' },
         { status: 400 }
       );
     }
@@ -81,7 +71,6 @@ export async function POST(request: NextRequest) {
     // 새 캐릭터 추가
     data.characters.push({
       name,
-      passwordHash: hashPassword(password),
       server: '마족 루미엘',
     });
 
@@ -99,11 +88,11 @@ export async function POST(request: NextRequest) {
 // DELETE - 캐릭터 삭제
 export async function DELETE(request: NextRequest) {
   try {
-    const { name, password } = await request.json();
+    const { name } = await request.json();
 
-    if (!name || !password) {
+    if (!name) {
       return NextResponse.json(
-        { message: '캐릭터 이름과 비밀번호가 필요합니다' },
+        { message: '캐릭터 이름이 필요합니다' },
         { status: 400 }
       );
     }
@@ -115,14 +104,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         { message: '캐릭터를 찾을 수 없습니다' },
         { status: 404 }
-      );
-    }
-
-    // 비밀번호 확인
-    if (character.passwordHash !== hashPassword(password)) {
-      return NextResponse.json(
-        { message: '비밀번호가 일치하지 않습니다' },
-        { status: 401 }
       );
     }
 

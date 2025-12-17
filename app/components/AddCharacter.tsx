@@ -4,14 +4,13 @@ import { useState } from 'react';
 
 export default function AddCharacter() {
   const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!name.trim() || !password) {
-      alert('캐릭터 이름과 비밀번호를 입력하세요');
+    if (!name.trim()) {
+      alert('캐릭터 이름을 입력하세요');
       return;
     }
 
@@ -23,13 +22,12 @@ export default function AddCharacter() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name: name.trim(), password }),
+        body: JSON.stringify({ name: name.trim() }),
       });
 
       if (response.ok) {
         alert('캐릭터가 추가되었습니다');
         setName('');
-        setPassword('');
         window.location.reload();
       } else {
         const error = await response.json();
@@ -51,14 +49,6 @@ export default function AddCharacter() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="캐릭터 이름"
-          className="flex-1 px-4 py-2 rounded bg-gray-700 border border-gray-600 focus:border-blue-500 focus:outline-none"
-          disabled={isLoading}
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="비밀번호 (삭제시 필요)"
           className="flex-1 px-4 py-2 rounded bg-gray-700 border border-gray-600 focus:border-blue-500 focus:outline-none"
           disabled={isLoading}
         />

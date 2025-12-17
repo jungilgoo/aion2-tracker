@@ -15,12 +15,23 @@ interface Character {
 }
 
 export default function CharacterList({ characters }: { characters: Character[] }) {
-  const [password, setPassword] = useState('');
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState<string | null>(null);
 
+  // 아이템 레벨 기준으로 내림차순 정렬
+  const sortedCharacters = [...characters].sort((a, b) => {
+    const levelA = parseInt(a.itemLevel || '0');
+    const levelB = parseInt(b.itemLevel || '0');
+    return levelB - levelA;
+  });
+
+  const handleDeleteClick = (name: string) => {
+    setCharacterToDelete(name);
+    setShowDeleteConfirm(true);
+  };
+
   const handleDelete = async () => {
-    if (!password || !characterToDelete) return;
+    if (!characterToDelete) return;
 
     try {
       const response = await fetch('/api/characters', {
@@ -28,7 +39,7 @@ export default function CharacterList({ characters }: { characters: Character[] 
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name: characterToDelete, password }),
+        body: JSON.stringify({ name: characterToDelete }),
       });
 
       if (response.ok) {
@@ -42,8 +53,7 @@ export default function CharacterList({ characters }: { characters: Character[] 
       alert('삭제 중 오류가 발생했습니다');
     }
 
-    setShowPasswordModal(false);
-    setPassword('');
+    setShowDeleteConfirm(false);
     setCharacterToDelete(null);
   };
 
@@ -73,82 +83,92 @@ export default function CharacterList({ characters }: { characters: Character[] 
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {characters.map((character) => {
-          const change = calculateChange(character);
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-700">
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">순위</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">캐릭터 이름</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">아이템 레벨</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">서버</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">마지막 업데이트</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">액션</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedCharacters.map((character, index) => {
+              const change = calculateChange(character);
 
-          return (
-            <div
-              key={character.name}
-              className="bg-gray-700 rounded-lg p-4 hover:bg-gray-600 transition-colors"
-            >
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="text-xl font-semibold">{character.name}</h3>
-                <button
-                  onClick={() => {
-                    setCharacterToDelete(character.name);
-                    setShowPasswordModal(true);
-                  }}
-                  className="text-red-400 hover:text-red-300 text-sm"
+              return (
+                <tr
+                  key={character.name}
+                  className="border-b border-gray-700 hover:bg-gray-700 transition-colors"
                 >
-                  삭제
-                </button>
-              </div>
-
-              <div className="text-3xl font-bold text-blue-400 mb-2">
-                {parseInt(character.itemLevel).toLocaleString()}
-                {change && (
-                  <span
-                    className={`text-lg ml-2 ${
-                      change.isPositive ? 'text-green-400' : 'text-red-400'
-                    }`}
-                  >
-                    {change.isPositive ? '+' : ''}{change.value}
-                  </span>
-                )}
-              </div>
-
-              <div className="text-sm text-gray-400 space-y-1">
-                <p>서버: {character.server}</p>
-                <p>
-                  업데이트: {new Date(character.lastUpdated).toLocaleString('ko-KR', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </p>
-              </div>
-
-              <a
-                href={character.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300 text-sm mt-2 inline-block"
-              >
-                공식 페이지 →
-              </a>
-            </div>
-          );
-        })}
+                  <td className="px-6 py-4 text-lg font-bold text-blue-400">
+                    {index + 1}
+                  </td>
+                  <td className="px-6 py-4">
+                    <a
+                      href={character.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-white hover:text-blue-400 transition-colors font-medium"
+                    >
+                      {character.name}
+                    </a>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl font-bold text-blue-400">
+                        {character.itemLevel ? parseInt(character.itemLevel).toLocaleString() : '-'}
+                      </span>
+                      {change && (
+                        <span
+                          className={`text-sm ${
+                            change.isPositive ? 'text-green-400' : 'text-red-400'
+                          }`}
+                        >
+                          {change.isPositive ? '+' : ''}{change.value}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-gray-400">
+                    {character.server}
+                  </td>
+                  <td className="px-6 py-4 text-gray-400 text-sm">
+                    {character.lastUpdated
+                      ? new Date(character.lastUpdated).toLocaleString('ko-KR', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : '-'}
+                  </td>
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={() => handleDeleteClick(character.name)}
+                      className="text-red-400 hover:text-red-300 text-sm transition-colors"
+                    >
+                      삭제
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
-      {/* Password Modal */}
-      {showPasswordModal && (
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-xl font-semibold mb-4">캐릭터 삭제</h3>
-            <p className="text-gray-400 mb-4">
-              "{characterToDelete}"를 삭제하려면 비밀번호를 입력하세요
+            <p className="text-gray-400 mb-6">
+              "{characterToDelete}"를 정말 삭제하시겠습니까?
             </p>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleDelete()}
-              placeholder="비밀번호"
-              className="w-full px-4 py-2 rounded bg-gray-700 border border-gray-600 focus:border-blue-500 focus:outline-none mb-4"
-            />
             <div className="flex gap-2">
               <button
                 onClick={handleDelete}
@@ -158,8 +178,7 @@ export default function CharacterList({ characters }: { characters: Character[] 
               </button>
               <button
                 onClick={() => {
-                  setShowPasswordModal(false);
-                  setPassword('');
+                  setShowDeleteConfirm(false);
                   setCharacterToDelete(null);
                 }}
                 className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded transition-colors"
