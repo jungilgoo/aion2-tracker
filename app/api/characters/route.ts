@@ -1,72 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { put, head, del } from '@vercel/blob';
+import { supabaseAdmin } from '@/lib/supabase';
+import crypto from 'crypto';
 
-const BLOB_NAME = 'characters-data';
-
-interface Character {
-  name: string;
-  itemLevel?: string;
-  server?: string;
-  lastUpdated?: string;
-  url?: string;
-  history?: Array<{
-    itemLevel: string;
-    date: string;
-  }>;
-}
-
-interface CharacterData {
-  characters: Character[];
-}
-
-async function readData(): Promise<CharacterData> {
-  try {
-    // Blob 존재 여부 확인
-    const blobInfo = await head(`${BLOB_NAME}.json`);
-
-    if (!blobInfo || !blobInfo.url) {
-      console.log('Blob does not exist, returning empty data');
-      return { characters: [] };
-    }
-
-    // Blob에서 데이터 읽기
-    const response = await fetch(blobInfo.url);
-    const content = await response.text();
-    return JSON.parse(content);
-  } catch (error) {
-    // Blob이 없거나 에러 발생 시 빈 배열 반환
-    console.log('Error reading blob, returning empty data:', error);
-    return { characters: [] };
-  }
-}
-
-async function writeData(data: CharacterData): Promise<void> {
-  const blobName = `${BLOB_NAME}.json`;
-
-  // 기존 Blob이 있으면 삭제
-  try {
-    const existing = await head(blobName);
-    if (existing && existing.url) {
-      console.log('Deleting existing blob:', existing.url);
-      await del(existing.url);
-    }
-  } catch (error) {
-    // Blob이 없으면 무시
-    console.log('No existing blob to delete');
-  }
-
-  // Blob Storage에 JSON 데이터 저장
-  console.log('Creating new blob');
-  await put(blobName, JSON.stringify(data, null, 2), {
-    access: 'public',
-    contentType: 'application/json',
-  });
+// 비밀번호 해싱 함수
+function hashPassword(password: string): string {
+  const salt = process.env.PASSWORD_SALT || '';
+  return crypto.createHmac('sha256', salt).update(password).digest('hex');
 }
 
 // POST - 캐릭터 추가
 export async function POST(request: NextRequest) {
   try {
-    const { name } = await request.json();
+    const { name, password } = await request.json();
 
     if (!name) {
       return NextResponse.json(
@@ -77,26 +22,41 @@ export async function POST(request: NextRequest) {
 
     console.log('Adding character:', name);
 
-    const data = await readData();
-    console.log('Current data:', data);
-
     // 중복 체크
-    if (data.characters.some((c) => c.name === name)) {
+    const { data: existing } = await supabaseAdmin
+      .from('characters')
+      .select('id')
+      .eq('name', name)
+      .single();
+
+    if (existing) {
       return NextResponse.json(
         { message: '이미 추가된 캐릭터입니다' },
         { status: 400 }
       );
     }
 
-    // 새 캐릭터 추가 (기본 정보만)
-    data.characters.push({
-      name,
-      server: '마족 루미엘',
-    });
+    // 비밀번호 해싱 (선택사항)
+    const passwordHash = password ? hashPassword(password) : null;
 
-    console.log('Saving data to blob...');
-    await writeData(data);
-    console.log('Data saved successfully');
+    // 새 캐릭터 추가
+    const { error } = await supabaseAdmin
+      .from('characters')
+      .insert({
+        name,
+        password_hash: passwordHash,
+        server: '마족 루미엘',
+      });
+
+    if (error) {
+      console.error('Supabase insert error:', error);
+      return NextResponse.json(
+        { message: '캐릭터 추가 실패', error: error.message },
+        { status: 500 }
+      );
+    }
+
+    console.log('Character added successfully');
 
     return NextResponse.json({
       message: '캐릭터가 추가되었습니다. 내일 오전 9시 자동 업데이트 시 아이템 레벨이 수집됩니다.'
@@ -113,7 +73,7 @@ export async function POST(request: NextRequest) {
 // DELETE - 캐릭터 삭제
 export async function DELETE(request: NextRequest) {
   try {
-    const { name } = await request.json();
+    const { name, password } = await request.json();
 
     if (!name) {
       return NextResponse.json(
@@ -122,8 +82,12 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const data = await readData();
-    const character = data.characters.find((c) => c.name === name);
+    // 캐릭터 찾기
+    const { data: character } = await supabaseAdmin
+      .from('characters')
+      .select('id, password_hash')
+      .eq('name', name)
+      .single();
 
     if (!character) {
       return NextResponse.json(
@@ -132,12 +96,34 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // 캐릭터 삭제
-    data.characters = data.characters.filter((c) => c.name !== name);
-    await writeData(data);
+    // 비밀번호 검증 (설정되어 있는 경우)
+    if (character.password_hash && password) {
+      const inputHash = hashPassword(password);
+      if (inputHash !== character.password_hash) {
+        return NextResponse.json(
+          { message: '비밀번호가 일치하지 않습니다' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // 캐릭터 삭제 (CASCADE로 히스토리도 자동 삭제됨)
+    const { error } = await supabaseAdmin
+      .from('characters')
+      .delete()
+      .eq('id', character.id);
+
+    if (error) {
+      console.error('Supabase delete error:', error);
+      return NextResponse.json(
+        { message: '삭제 실패', error: error.message },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ message: '캐릭터가 삭제되었습니다' });
   } catch (error) {
+    console.error('Error in DELETE /api/characters:', error);
     return NextResponse.json(
       { message: '서버 오류가 발생했습니다' },
       { status: 500 }

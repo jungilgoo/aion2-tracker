@@ -1,51 +1,83 @@
-import { head } from '@vercel/blob';
+import { supabase } from '@/lib/supabase';
 import CharacterList from './components/CharacterList';
 import AddCharacter from './components/AddCharacter';
 import LastUpdate from './components/LastUpdate';
 
-const BLOB_NAME = 'characters-data';
-
 interface Character {
+  id: number;
   name: string;
-  itemLevel: string;
+  itemLevel: number | null;
   server: string;
-  lastUpdated: string;
-  url: string;
+  lastUpdated: string | null;
+  url: string | null;
   history?: Array<{
-    itemLevel: string;
+    itemLevel: number;
     date: string;
   }>;
 }
 
-interface CharacterData {
-  characters: Character[];
-}
-
-async function getCharacters(): Promise<CharacterData> {
+async function getCharacters(): Promise<Character[]> {
   try {
-    // Blob 존재 여부 확인
-    const blobInfo = await head(`${BLOB_NAME}.json`);
+    // 캐릭터 데이터 가져오기
+    const { data: characters, error: charsError } = await supabase
+      .from('characters')
+      .select('*')
+      .order('item_level', { ascending: false, nullsFirst: false });
 
-    if (!blobInfo || !blobInfo.url) {
-      console.log('No blob found, returning empty data');
-      return { characters: [] };
+    if (charsError) {
+      console.error('Error fetching characters:', charsError);
+      return [];
     }
 
-    // Blob에서 데이터 읽기 (캐시 무효화 - timestamp로 CDN 캐시 우회)
-    const cacheBuster = `?t=${Date.now()}`;
-    const response = await fetch(blobInfo.url + cacheBuster, {
-      cache: 'no-store',
-    });
-    const content = await response.text();
-    return JSON.parse(content);
+    if (!characters || characters.length === 0) {
+      return [];
+    }
+
+    // 각 캐릭터의 히스토리 가져오기
+    const charactersWithHistory = await Promise.all(
+      characters.map(async (char) => {
+        const { data: history } = await supabase
+          .from('character_history')
+          .select('item_level, date')
+          .eq('character_id', char.id)
+          .order('date', { ascending: true });
+
+        return {
+          id: char.id,
+          name: char.name,
+          itemLevel: char.item_level,
+          server: char.server,
+          lastUpdated: char.last_updated,
+          url: char.url,
+          history: history?.map(h => ({
+            itemLevel: h.item_level,
+            date: h.date
+          })) || []
+        };
+      })
+    );
+
+    return charactersWithHistory;
   } catch (error) {
-    console.log('Error fetching characters:', error);
-    return { characters: [] };
+    console.error('Error in getCharacters:', error);
+    return [];
   }
 }
 
 export default async function Home() {
-  const data = await getCharacters();
+  const characters = await getCharacters();
+
+  // itemLevel이 문자열로 필요한 경우 변환
+  const charactersForDisplay = characters.map(char => ({
+    ...char,
+    itemLevel: char.itemLevel?.toString() || '',
+    lastUpdated: char.lastUpdated || '',
+    url: char.url || '',
+    history: char.history?.map(h => ({
+      itemLevel: h.itemLevel.toString(),
+      date: h.date
+    }))
+  }));
 
   return (
     <main>
@@ -55,12 +87,12 @@ export default async function Home() {
 
       <div className="bg-gray-800 rounded-lg p-6">
         <h2 className="text-2xl font-semibold mb-4">
-          추적 중인 캐릭터 ({data.characters.length})
+          추적 중인 캐릭터 ({characters.length})
         </h2>
-        <CharacterList characters={data.characters} />
+        <CharacterList characters={charactersForDisplay} />
       </div>
 
-      <LastUpdate lastUpdated={data.characters[0]?.lastUpdated} />
+      <LastUpdate lastUpdated={charactersForDisplay[0]?.lastUpdated} />
     </main>
   );
 }

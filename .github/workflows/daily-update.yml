@@ -27,8 +27,9 @@ jobs:
 
       - name: Run scraper
         env:
-          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npm run scrape
 
-      # Blob Storage를 사용하므로 Git 커밋은 필요 없음
-      # 데이터는 Vercel Blob에 자동 저장됨
+      # Supabase 데이터베이스를 사용하므로 Git 커밋은 필요 없음
+      # 데이터는 Supabase에 자동 저장됨
