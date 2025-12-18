@@ -31,8 +31,9 @@ async function getCharacters(): Promise<CharacterData> {
       return { characters: [] };
     }
 
-    // Blob에서 데이터 읽기 (캐시 무효화)
-    const response = await fetch(blobInfo.url, {
+    // Blob에서 데이터 읽기 (캐시 무효화 - timestamp로 CDN 캐시 우회)
+    const cacheBuster = `?t=${Date.now()}`;
+    const response = await fetch(blobInfo.url + cacheBuster, {
       cache: 'no-store',
     });
     const content = await response.text();
