@@ -63,6 +63,9 @@ export default function AddCharacter() {
       <p className="text-sm text-gray-400 mt-2">
         * 마족 루미엘 서버의 캐릭터만 추가 가능합니다
       </p>
+      <p className="text-xs text-gray-500 mt-1">
+        * 캐릭터 추가 후 내일 오전 9시 자동 업데이트 시 아이템 레벨이 수집됩니다
+      </p>
     </div>
   );
 }
