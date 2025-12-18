@@ -87,7 +87,7 @@ export default async function Home() {
 
       <div className="bg-gray-800 rounded-lg p-6">
         <h2 className="text-2xl font-semibold mb-4">
-          추적 중인 캐릭터 ({characters.length})
+          길드원 리스트 ({characters.length})
         </h2>
         <CharacterList characters={charactersForDisplay} />
       </div>

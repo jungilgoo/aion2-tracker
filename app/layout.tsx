@@ -2,7 +2,7 @@ import './globals.css'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'AION2 캐릭터 추적기',
+  title: '아이온2 Netflix 레기온',
   description: '마족 루미엘 서버 캐릭터 아이템 레벨 추적',
 }
 
@@ -17,10 +17,10 @@ export default function RootLayout({
         <div className="container mx-auto px-4 py-8">
           <header className="mb-8">
             <h1 className="text-4xl font-bold text-center mb-2">
-              AION2 캐릭터 추적기
+              아이온2 Netflix 레기온
             </h1>
             <p className="text-center text-gray-400">
-              마족 루미엘 서버 | 아이템 레벨 자동 추적
+              마족 루미엘 서버 | 길드원 아이템 레벨
             </p>
           </header>
           {children}
