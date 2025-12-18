@@ -14,6 +14,87 @@ interface Character {
   }>;
 }
 
+interface HistoryChange {
+  value: number;           // 변화량 (예: 50, -20)
+  isPositive: boolean;     // 증가 여부
+  previousLevel: string;   // 이전 레벨 (예: "2800")
+}
+
+/**
+ * 지정된 일수 이전의 히스토리 항목을 찾습니다.
+ *
+ * @param history - 히스토리 배열
+ * @param daysAgo - 찾으려는 일수 (1 = 전날, 7 = 1주일 전)
+ * @param currentDate - 기준 시점 (character.lastUpdated)
+ * @returns 가장 가까운 과거 히스토리 항목 또는 null
+ */
+function findHistoryByDaysAgo(
+  history: Array<{ itemLevel: string; date: string }>,
+  daysAgo: number,
+  currentDate: string
+): { itemLevel: string; date: string } | null {
+  if (!history || history.length === 0) return null;
+
+  const current = new Date(currentDate);
+  const targetMinHours = daysAgo * 24 - 4; // 유연한 시간 범위 (예: 1일 = 20-28시간)
+  const targetMaxHours = daysAgo * 24 + 4;
+
+  // 히스토리를 역순으로 순회 (최신부터)
+  for (let i = history.length - 1; i >= 0; i--) {
+    const historyDate = new Date(history[i].date);
+    const hoursDiff = (current.getTime() - historyDate.getTime()) / (1000 * 60 * 60);
+
+    if (hoursDiff >= targetMinHours && hoursDiff <= targetMaxHours) {
+      return history[i];
+    }
+  }
+
+  // 목표 범위에 없으면 가장 가까운 과거 항목 반환 (폴백)
+  for (let i = history.length - 1; i >= 0; i--) {
+    const historyDate = new Date(history[i].date);
+    const hoursDiff = (current.getTime() - historyDate.getTime()) / (1000 * 60 * 60);
+
+    if (hoursDiff >= targetMinHours) {
+      return history[i];
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 현재 레벨과 과거 레벨의 차이를 계산합니다.
+ *
+ * @param currentLevel - 현재 아이템 레벨
+ * @param targetHistory - 비교 대상 히스토리 항목
+ * @returns 변화 정보 또는 null
+ */
+function calculateChangeFromHistory(
+  currentLevel: string,
+  targetHistory: { itemLevel: string; date: string } | null
+): HistoryChange | null {
+  if (!targetHistory) return null;
+
+  const current = parseInt(currentLevel);
+  const previous = parseInt(targetHistory.itemLevel);
+  const change = current - previous;
+
+  // 변화가 0인 경우 특별 처리
+  if (change === 0) {
+    return {
+      value: 0,
+      isPositive: true, // 중립적인 값
+      previousLevel: targetHistory.itemLevel
+    };
+  }
+
+  return {
+    value: change,
+    isPositive: change > 0,
+    previousLevel: targetHistory.itemLevel
+  };
+}
+
 export default function CharacterList({ characters }: { characters: Character[] }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState<string | null>(null);
@@ -57,21 +138,6 @@ export default function CharacterList({ characters }: { characters: Character[] 
     setCharacterToDelete(null);
   };
 
-  const calculateChange = (character: Character) => {
-    if (!character.history || character.history.length < 2) return null;
-
-    const current = parseInt(character.itemLevel);
-    const previous = parseInt(character.history[character.history.length - 2].itemLevel);
-    const change = current - previous;
-
-    if (change === 0) return null;
-
-    return {
-      value: change,
-      isPositive: change > 0
-    };
-  };
-
   if (characters.length === 0) {
     return (
       <div className="text-center py-12 text-gray-400">
@@ -90,23 +156,47 @@ export default function CharacterList({ characters }: { characters: Character[] 
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">순위</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">캐릭터 이름</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">아이템 레벨</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">서버</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">전날 변화</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">1주일 변화</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">마지막 업데이트</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">액션</th>
             </tr>
           </thead>
           <tbody>
             {sortedCharacters.map((character, index) => {
-              const change = calculateChange(character);
+              // 전날 변화량 계산
+              const yesterdayHistory = findHistoryByDaysAgo(
+                character.history || [],
+                1,
+                character.lastUpdated
+              );
+              const yesterdayChange = calculateChangeFromHistory(
+                character.itemLevel,
+                yesterdayHistory
+              );
+
+              // 1주일 전 변화량 계산
+              const weekAgoHistory = findHistoryByDaysAgo(
+                character.history || [],
+                7,
+                character.lastUpdated
+              );
+              const weekAgoChange = calculateChangeFromHistory(
+                character.itemLevel,
+                weekAgoHistory
+              );
 
               return (
                 <tr
                   key={character.name}
                   className="border-b border-gray-700 hover:bg-gray-700 transition-colors"
                 >
+                  {/* 순위 */}
                   <td className="px-6 py-4 text-lg font-bold text-blue-400">
                     {index + 1}
                   </td>
+
+                  {/* 캐릭터 이름 */}
                   <td className="px-6 py-4">
                     <a
                       href={character.url}
@@ -117,25 +207,69 @@ export default function CharacterList({ characters }: { characters: Character[] 
                       {character.name}
                     </a>
                   </td>
+
+                  {/* 아이템 레벨 */}
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl font-bold text-blue-400">
-                        {character.itemLevel ? parseInt(character.itemLevel).toLocaleString() : '-'}
-                      </span>
-                      {change && (
-                        <span
-                          className={`text-sm ${
-                            change.isPositive ? 'text-green-400' : 'text-red-400'
-                          }`}
-                        >
-                          {change.isPositive ? '+' : ''}{change.value}
-                        </span>
-                      )}
-                    </div>
+                    <span className="text-2xl font-bold text-blue-400">
+                      {character.itemLevel ? parseInt(character.itemLevel).toLocaleString() : '-'}
+                    </span>
                   </td>
-                  <td className="px-6 py-4 text-gray-400">
-                    {character.server}
+
+                  {/* 전날 변화 */}
+                  <td className="px-6 py-4">
+                    {yesterdayChange ? (
+                      <div className="flex flex-col">
+                        {yesterdayChange.value === 0 ? (
+                          <span className="text-xs text-gray-500">변화 없음</span>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-1">
+                              <span className={`text-sm font-semibold ${
+                                yesterdayChange.isPositive ? 'text-green-400' : 'text-red-400'
+                              }`}>
+                                {yesterdayChange.isPositive ? '▲' : '▼'}
+                                {Math.abs(yesterdayChange.value)}
+                              </span>
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {parseInt(yesterdayChange.previousLevel).toLocaleString()}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-500">데이터 없음</span>
+                    )}
                   </td>
+
+                  {/* 1주일 변화 */}
+                  <td className="px-6 py-4">
+                    {weekAgoChange ? (
+                      <div className="flex flex-col">
+                        {weekAgoChange.value === 0 ? (
+                          <span className="text-xs text-gray-500">변화 없음</span>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-1">
+                              <span className={`text-sm font-semibold ${
+                                weekAgoChange.isPositive ? 'text-green-400' : 'text-red-400'
+                              }`}>
+                                {weekAgoChange.isPositive ? '▲' : '▼'}
+                                {Math.abs(weekAgoChange.value)}
+                              </span>
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {parseInt(weekAgoChange.previousLevel).toLocaleString()}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-500">데이터 없음</span>
+                    )}
+                  </td>
+
+                  {/* 마지막 업데이트 */}
                   <td className="px-6 py-4 text-gray-400 text-sm">
                     {character.lastUpdated
                       ? new Date(character.lastUpdated).toLocaleString('ko-KR', {
@@ -146,6 +280,8 @@ export default function CharacterList({ characters }: { characters: Character[] 
                         })
                       : '-'}
                   </td>
+
+                  {/* 삭제 버튼 */}
                   <td className="px-6 py-4">
                     <button
                       onClick={() => handleDeleteClick(character.name)}
