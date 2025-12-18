@@ -2,7 +2,6 @@ import { head } from '@vercel/blob';
 import CharacterList from './components/CharacterList';
 import AddCharacter from './components/AddCharacter';
 import LastUpdate from './components/LastUpdate';
-import ManualUpdateButton from './components/ManualUpdateButton';
 
 const BLOB_NAME = 'characters-data';
 
@@ -51,10 +50,6 @@ export default async function Home() {
     <main>
       <div className="mb-8">
         <AddCharacter />
-      </div>
-
-      <div className="mb-8">
-        <ManualUpdateButton />
       </div>
 
       <div className="bg-gray-800 rounded-lg p-6">

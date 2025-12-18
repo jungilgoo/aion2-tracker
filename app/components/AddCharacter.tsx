@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function AddCharacter() {
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +30,7 @@ export default function AddCharacter() {
       if (response.ok) {
         alert('캐릭터가 추가되었습니다');
         setName('');
-        window.location.reload();
+        router.refresh(); // 서버 컴포넌트만 새로고침 (빠름!)
       } else {
         const error = await response.json();
         alert(error.message || '추가 실패');

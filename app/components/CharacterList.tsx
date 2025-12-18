@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface Character {
   name: string;
@@ -99,6 +100,7 @@ export default function CharacterList({ characters }: { characters: Character[] 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     setIsMounted(true);
@@ -130,7 +132,7 @@ export default function CharacterList({ characters }: { characters: Character[] 
 
       if (response.ok) {
         alert('캐릭터가 삭제되었습니다');
-        window.location.reload();
+        router.refresh(); // 서버 컴포넌트만 새로고침 (빠름!)
       } else {
         const error = await response.json();
         alert(error.message || '삭제 실패');
@@ -155,6 +157,9 @@ export default function CharacterList({ characters }: { characters: Character[] 
   return (
     <>
       <div className="overflow-x-auto">
+        <p className="text-xs text-gray-400 mb-3">
+          💡 캐릭터 이름을 클릭하면 AION2 공식 정보 페이지로 이동합니다
+        </p>
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-700">
