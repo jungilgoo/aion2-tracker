@@ -164,27 +164,32 @@ export default function CharacterList({ characters }: { characters: Character[] 
           </thead>
           <tbody>
             {sortedCharacters.map((character, index) => {
-              // 전날 변화량 계산
-              const yesterdayHistory = findHistoryByDaysAgo(
-                character.history || [],
-                1,
-                character.lastUpdated
-              );
-              const yesterdayChange = calculateChangeFromHistory(
-                character.itemLevel,
-                yesterdayHistory
-              );
+              // 전날 변화량 계산 (데이터가 있을 때만)
+              let yesterdayChange = null;
+              let weekAgoChange = null;
 
-              // 1주일 전 변화량 계산
-              const weekAgoHistory = findHistoryByDaysAgo(
-                character.history || [],
-                7,
-                character.lastUpdated
-              );
-              const weekAgoChange = calculateChangeFromHistory(
-                character.itemLevel,
-                weekAgoHistory
-              );
+              if (character.itemLevel && character.lastUpdated && character.history) {
+                const yesterdayHistory = findHistoryByDaysAgo(
+                  character.history,
+                  1,
+                  character.lastUpdated
+                );
+                yesterdayChange = calculateChangeFromHistory(
+                  character.itemLevel,
+                  yesterdayHistory
+                );
+
+                // 1주일 전 변화량 계산
+                const weekAgoHistory = findHistoryByDaysAgo(
+                  character.history,
+                  7,
+                  character.lastUpdated
+                );
+                weekAgoChange = calculateChangeFromHistory(
+                  character.itemLevel,
+                  weekAgoHistory
+                );
+              }
 
               return (
                 <tr
