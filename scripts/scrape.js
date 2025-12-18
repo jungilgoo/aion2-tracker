@@ -13,6 +13,7 @@ const SERVER_CONFIG = {
 
 /**
  * 캐릭터 검색 및 아이템 레벨 추출
+ * (lib/scraper.ts의 JavaScript 버전)
  */
 async function scrapeCharacter(page, characterName) {
   console.log(`\n🔍 Searching for: ${characterName}`);
@@ -47,7 +48,7 @@ async function scrapeCharacter(page, characterName) {
 
       const nameText = await nameElement.textContent();
       // 정확히 캐릭터 이름만 있는지 확인 (공백 제거 후 비교)
-      if (nameText.trim() === characterName) {
+      if (nameText && nameText.trim() === characterName) {
         targetItem = item;
         console.log(`   ✅ Found exact match: "${nameText.trim()}"`);
         break;
@@ -67,7 +68,7 @@ async function scrapeCharacter(page, characterName) {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
-    // 4. 아이템 레벨 추출
+    // 6. 아이템 레벨 추출
     const itemLevel = await page.$eval('.profile__info-item-level span', el => el.textContent.trim());
 
     console.log(`   ✅ Item Level: ${itemLevel}`);

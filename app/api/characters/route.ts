@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { put, head, del } from '@vercel/blob';
+import { scrapeSingleCharacter } from '@/lib/scraper';
 
 const BLOB_NAME = 'characters-data';
 
@@ -88,17 +89,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 새 캐릭터 추가
+    // 캐릭터 스크래핑 시도
+    console.log('Scraping character data...');
+    const scrapedData = await scrapeSingleCharacter(name);
+
+    if (!scrapedData) {
+      return NextResponse.json(
+        { message: '캐릭터를 찾을 수 없습니다. 마족 루미엘 서버의 정확한 캐릭터 이름을 입력해주세요.' },
+        { status: 404 }
+      );
+    }
+
+    // 새 캐릭터 추가 (스크래핑된 데이터 포함)
     data.characters.push({
-      name,
-      server: '마족 루미엘',
+      name: scrapedData.name,
+      itemLevel: scrapedData.itemLevel,
+      server: scrapedData.server,
+      lastUpdated: scrapedData.lastUpdated,
+      url: scrapedData.url,
+      history: [{
+        itemLevel: scrapedData.itemLevel,
+        date: scrapedData.lastUpdated
+      }]
     });
 
     console.log('Saving data to blob...');
     await writeData(data);
     console.log('Data saved successfully');
 
-    return NextResponse.json({ message: '캐릭터가 추가되었습니다' });
+    return NextResponse.json({
+      message: '캐릭터가 추가되었습니다',
+      character: scrapedData
+    });
   } catch (error) {
     console.error('Error in POST /api/characters:', error);
     return NextResponse.json(
