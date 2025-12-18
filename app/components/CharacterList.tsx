@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface Character {
   name: string;
@@ -98,6 +98,11 @@ function calculateChangeFromHistory(
 export default function CharacterList({ characters }: { characters: Character[] }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // 아이템 레벨 기준으로 내림차순 정렬
   const sortedCharacters = [...characters].sort((a, b) => {
@@ -276,7 +281,7 @@ export default function CharacterList({ characters }: { characters: Character[] 
 
                   {/* 마지막 업데이트 */}
                   <td className="px-6 py-4 text-gray-400 text-sm">
-                    {character.lastUpdated
+                    {isMounted && character.lastUpdated
                       ? new Date(character.lastUpdated).toLocaleString('ko-KR', {
                           month: 'short',
                           day: 'numeric',

@@ -27,6 +27,7 @@
 ### 주요 기능
 - ✅ 캐릭터 추가/삭제 (비밀번호 보호)
 - ✅ 매일 자동 업데이트 (GitHub Actions)
+- ✅ 수동 업데이트 (웹 UI 버튼으로 즉시 업데이트)
 - ✅ 아이템 레벨 변화 추적 및 표시
 - ✅ 히스토리 관리 (최근 30일)
 - ✅ 반응형 UI
@@ -37,11 +38,15 @@
 F:\region\
 ├── app/                          # Next.js 14 App Directory
 │   ├── api/
-│   │   └── characters/
-│   │       └── route.ts         # API 엔드포인트 (POST: 추가, DELETE: 삭제)
+│   │   ├── characters/
+│   │   │   └── route.ts         # API 엔드포인트 (POST: 추가, DELETE: 삭제)
+│   │   └── trigger-update/
+│   │       └── route.ts         # 수동 업데이트 트리거 API
 │   ├── components/
 │   │   ├── AddCharacter.tsx     # 캐릭터 추가 폼 컴포넌트
-│   │   └── CharacterList.tsx    # 캐릭터 목록 및 삭제 컴포넌트
+│   │   ├── CharacterList.tsx    # 캐릭터 목록 및 삭제 컴포넌트
+│   │   ├── LastUpdate.tsx       # 마지막 업데이트 시간 표시
+│   │   └── ManualUpdateButton.tsx # 수동 업데이트 버튼 컴포넌트
 │   ├── layout.tsx               # 루트 레이아웃 (메타데이터, 글로벌 스타일)
 │   └── page.tsx                 # 메인 페이지 (서버 컴포넌트)
 ├── data/
@@ -131,15 +136,25 @@ npm start
 `.env` 파일 (로컬 개발용):
 ```bash
 PASSWORD_SALT=your-secret-salt-here
+GITHUB_TOKEN=ghp_your_github_personal_access_token_here
 # BLOB_READ_WRITE_TOKEN은 로컬 개발 시 필요 없음
 ```
 
 **Vercel 환경 변수 (프로덕션):**
 - `PASSWORD_SALT`: 수동 설정 필요
+- `GITHUB_TOKEN`: GitHub Personal Access Token (수동 업데이트용)
 - `BLOB_READ_WRITE_TOKEN`: Blob Storage 생성 시 자동 설정
 
 **GitHub Secrets (Actions용):**
 - `BLOB_READ_WRITE_TOKEN`: Vercel에서 복사해서 수동 추가
+
+**GitHub Token 생성 방법:**
+1. https://github.com/settings/tokens/new 접속
+2. Note: "AION2 Tracker Manual Update" 입력
+3. Expiration: 원하는 기간 선택 (권장: No expiration)
+4. Scopes: `public_repo` 또는 `repo` 선택
+5. Generate token 클릭 후 복사
+6. Vercel 환경 변수에 `GITHUB_TOKEN`으로 추가
 
 ## 배포 프로세스
 
@@ -170,6 +185,14 @@ PASSWORD_SALT=your-secret-salt-here
 ### 자동 업데이트
 - 매일 오전 9시 자동 실행
 - GitHub Actions에서 수동 실행 가능
+
+### 수동 업데이트
+1. 웹 페이지에서 "🔄 지금 업데이트" 버튼 클릭
+2. 1-2분 대기 (GitHub Actions 실행)
+3. 자동으로 페이지 새로고침 (또는 수동 새로고침)
+4. 모든 캐릭터 정보 최신화 완료
+
+**참고**: 수동 업데이트는 GitHub Token이 필요하며, Vercel 환경 변수에 설정되어 있어야 합니다.
 
 ## 보안 고려사항
 
