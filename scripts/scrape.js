@@ -87,32 +87,34 @@ async function scrapeCharacter(page, characterName) {
     // 6. 아이템 레벨 및 클래스 추출
     const itemLevel = await page.$eval('.profile__info-item-level span', el => el.textContent.trim());
 
-    // 클래스 정보 추출 (여러 선택자 시도)
+    // 클래스 정보 추출 (이미지 src에서 추출)
     let characterClass = null;
     try {
-      // 첫 번째 시도: 일반적인 클래스 선택자
-      characterClass = await page.$eval('.profile__info-class', el => el.textContent.trim());
-    } catch (e1) {
-      try {
-        // 두 번째 시도: 직업/클래스 텍스트 찾기
-        characterClass = await page.$eval('.profile__class', el => el.textContent.trim());
-      } catch (e2) {
-        try {
-          // 세 번째 시도: dt/dd 구조에서 찾기
-          characterClass = await page.evaluate(() => {
-            const dts = document.querySelectorAll('dt');
-            for (const dt of dts) {
-              if (dt.textContent.includes('클래스') || dt.textContent.includes('직업')) {
-                const dd = dt.nextElementSibling;
-                return dd ? dd.textContent.trim() : null;
-              }
-            }
-            return null;
-          });
-        } catch (e3) {
-          console.log(`   ⚠️  Could not extract class information`);
-        }
+      // 클래스 아이콘 이미지에서 추출
+      const classImageSrc = await page.$eval('img[src*="class_icon_"]', el => el.src);
+
+      // URL에서 클래스명 추출: class_icon_elementalist.png → elementalist
+      const match = classImageSrc.match(/class_icon_(\w+)\.png/);
+      if (match && match[1]) {
+        const classKey = match[1];
+
+        // 영문 클래스명을 한글로 변환 (AION2 클래스)
+        const classNames = {
+          'elementalist': '정령성',
+          'assassin': '살성',
+          'ranger': '궁성',
+          'chanter': '호법성',
+          'cleric': '치유성',
+          'gladiator': '검성',
+          'sorcerer': '마도성',
+          'templar': '수호성'
+        };
+
+        characterClass = classNames[classKey] || classKey; // 매핑 없으면 영문 그대로
+        console.log(`   🎯 Class detected: ${classKey} → ${characterClass}`);
       }
+    } catch (error) {
+      console.log(`   ⚠️  Could not extract class information:`, error.message);
     }
 
     console.log(`   ✅ Item Level: ${itemLevel}`);
