@@ -41,7 +41,7 @@ jobs:
           REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
         run: |
           echo "Triggering revalidation..."
-          response=$(curl -X POST "$VERCEL_URL/api/revalidate?secret=$REVALIDATE_SECRET" \
+          response=$(curl -L -X POST "$VERCEL_URL/api/revalidate?secret=$REVALIDATE_SECRET" \
             -w "\n%{http_code}" \
             -s)
           http_code=$(echo "$response" | tail -n1)
