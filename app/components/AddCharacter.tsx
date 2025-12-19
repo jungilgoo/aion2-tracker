@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 export default function AddCharacter() {
   const [name, setName] = useState('');
@@ -12,7 +13,7 @@ export default function AddCharacter() {
     e.preventDefault();
 
     if (!name.trim()) {
-      alert('캐릭터 이름을 입력하세요');
+      toast.error('캐릭터 이름을 입력하세요');
       return;
     }
 
@@ -28,15 +29,15 @@ export default function AddCharacter() {
       });
 
       if (response.ok) {
-        alert('캐릭터가 추가되었습니다');
+        toast.success('캐릭터가 추가되었습니다');
         setName('');
         router.refresh(); // 서버 컴포넌트만 새로고침 (빠름!)
       } else {
         const error = await response.json();
-        alert(error.message || '추가 실패');
+        toast.error(error.message || '추가 실패');
       }
     } catch (error) {
-      alert('추가 중 오류가 발생했습니다');
+      toast.error('추가 중 오류가 발생했습니다');
     } finally {
       setIsLoading(false);
     }

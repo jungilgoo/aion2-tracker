@@ -33,3 +33,26 @@ jobs:
 
       # Supabase 데이터베이스를 사용하므로 Git 커밋은 필요 없음
       # 데이터는 Supabase에 자동 저장됨
+
+      # 스크래핑 완료 후 Vercel 캐시 즉시 갱신
+      - name: Trigger Vercel revalidation
+        env:
+          VERCEL_URL: ${{ secrets.VERCEL_URL }}
+          REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
+        run: |
+          echo "Triggering revalidation..."
+          response=$(curl -X POST "$VERCEL_URL/api/revalidate?secret=$REVALIDATE_SECRET" \
+            -w "\n%{http_code}" \
+            -s)
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          echo "Response: $body"
+          echo "HTTP Status: $http_code"
+
+          if [ "$http_code" != "200" ]; then
+            echo "❌ Revalidation failed!"
+            exit 1
+          fi
+
+          echo "✅ Revalidation successful!"

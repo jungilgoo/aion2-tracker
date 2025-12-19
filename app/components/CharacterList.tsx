@@ -2,6 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+
+// 상수 정의
+const HISTORY_CONSTANTS = {
+  HOURS_PER_DAY: 24,           // 하루 시간
+  TIME_TOLERANCE_HOURS: 4,     // 히스토리 검색 시간 범위 허용 오차 (±4시간)
+  DAYS_YESTERDAY: 1,           // 전날
+  DAYS_WEEK_AGO: 7             // 1주일 전
+};
 
 interface Character {
   name: string;
@@ -37,8 +46,8 @@ function findHistoryByDaysAgo(
   if (!history || history.length === 0) return null;
 
   const current = new Date(currentDate);
-  const targetMinHours = daysAgo * 24 - 4; // 유연한 시간 범위 (예: 1일 = 20-28시간)
-  const targetMaxHours = daysAgo * 24 + 4;
+  const targetMinHours = daysAgo * HISTORY_CONSTANTS.HOURS_PER_DAY - HISTORY_CONSTANTS.TIME_TOLERANCE_HOURS;
+  const targetMaxHours = daysAgo * HISTORY_CONSTANTS.HOURS_PER_DAY + HISTORY_CONSTANTS.TIME_TOLERANCE_HOURS;
 
   // 히스토리를 역순으로 순회 (최신부터)
   for (let i = history.length - 1; i >= 0; i--) {
@@ -131,14 +140,14 @@ export default function CharacterList({ characters }: { characters: Character[] 
       });
 
       if (response.ok) {
-        alert('캐릭터가 삭제되었습니다');
+        toast.success('캐릭터가 삭제되었습니다');
         router.refresh(); // 서버 컴포넌트만 새로고침 (빠름!)
       } else {
         const error = await response.json();
-        alert(error.message || '삭제 실패');
+        toast.error(error.message || '삭제 실패');
       }
     } catch (error) {
-      alert('삭제 중 오류가 발생했습니다');
+      toast.error('삭제 중 오류가 발생했습니다');
     }
 
     setShowDeleteConfirm(false);
@@ -181,7 +190,7 @@ export default function CharacterList({ characters }: { characters: Character[] 
               if (character.itemLevel && character.lastUpdated && character.history) {
                 const yesterdayHistory = findHistoryByDaysAgo(
                   character.history,
-                  1,
+                  HISTORY_CONSTANTS.DAYS_YESTERDAY,
                   character.lastUpdated
                 );
                 yesterdayChange = calculateChangeFromHistory(
@@ -192,7 +201,7 @@ export default function CharacterList({ characters }: { characters: Character[] 
                 // 1주일 전 변화량 계산
                 const weekAgoHistory = findHistoryByDaysAgo(
                   character.history,
-                  7,
+                  HISTORY_CONSTANTS.DAYS_WEEK_AGO,
                   character.lastUpdated
                 );
                 weekAgoChange = calculateChangeFromHistory(

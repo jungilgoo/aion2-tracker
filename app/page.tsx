@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 import CharacterList from './components/CharacterList';
 import AddCharacter from './components/AddCharacter';
 import LastUpdate from './components/LastUpdate';
@@ -25,7 +26,7 @@ async function getCharacters(): Promise<Character[]> {
       .order('item_level', { ascending: false, nullsFirst: false });
 
     if (charsError) {
-      console.error('Error fetching characters:', charsError);
+      logger.error('Error fetching characters:', charsError);
       return [];
     }
 
@@ -59,7 +60,7 @@ async function getCharacters(): Promise<Character[]> {
 
     return charactersWithHistory;
   } catch (error) {
-    console.error('Error in getCharacters:', error);
+    logger.error('Error in getCharacters:', error);
     return [];
   }
 }
@@ -97,5 +98,7 @@ export default async function Home() {
   );
 }
 
-// 항상 최신 데이터 표시 (캐시 비활성화)
-export const revalidate = 0;
+// On-Demand Revalidation 사용
+// GitHub Actions에서 스크래핑 완료 후 수동으로 캐시 갱신 트리거
+// 자동 재검증 비활성화 - 불필요한 DB 쿼리 방지
+export const revalidate = false;

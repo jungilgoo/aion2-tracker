@@ -1,5 +1,6 @@
 import './globals.css'
 import type { Metadata } from 'next'
+import { Toaster } from 'sonner'
 
 export const metadata: Metadata = {
   title: '아이온2 Netflix 레기온',
@@ -14,6 +15,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className="bg-gray-900 text-white min-h-screen">
+        <Toaster position="top-center" richColors />
         <div className="container mx-auto px-4 py-8">
           <header className="mb-8">
             <h1 className="text-4xl font-bold text-center mb-2">

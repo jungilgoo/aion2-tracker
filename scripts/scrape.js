@@ -1,6 +1,14 @@
 const { chromium } = require('playwright');
 const { createClient } = require('@supabase/supabase-js');
 
+// 상수 정의
+const TIMING = {
+  REACT_APP_LOAD_DELAY: 8000,  // React 앱 로딩 대기 시간 (ms)
+  REQUEST_INTERVAL: 2000,       // 서버 부하 방지를 위한 요청 간격 (ms)
+  PAGE_LOAD_TIMEOUT: 30000,     // 페이지 로딩 타임아웃 (ms)
+  DETAIL_PAGE_DELAY: 3000       // 상세 페이지 로딩 대기 (ms)
+};
+
 // Supabase 초기화
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -31,10 +39,10 @@ async function scrapeCharacter(page, characterName) {
     // 1. URL 직접 구성하여 검색 결과 페이지로 이동
     const searchUrl = `https://aion2.plaync.com/ko-kr/characters/index?race=${SERVER_CONFIG.race}&serverId=${SERVER_CONFIG.serverId}&keyword=${encodeURIComponent(characterName)}`;
     console.log(`   URL: ${searchUrl}`);
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: TIMING.PAGE_LOAD_TIMEOUT });
 
     // React 앱 로딩 대기
-    await page.waitForTimeout(8000);
+    await page.waitForTimeout(TIMING.REACT_APP_LOAD_DELAY);
 
     // 2. 검색 결과 항목 찾기
     console.log(`   Looking for search results...`);
@@ -74,7 +82,7 @@ async function scrapeCharacter(page, characterName) {
 
     // 페이지 이동 대기
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(TIMING.DETAIL_PAGE_DELAY);
 
     // 6. 아이템 레벨 추출
     const itemLevel = await page.$eval('.profile__info-item-level span', el => el.textContent.trim());
@@ -175,7 +183,7 @@ async function main() {
     }
 
     // 요청 간격 (서버 부하 방지)
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(TIMING.REQUEST_INTERVAL);
   }
 
   await browser.close();

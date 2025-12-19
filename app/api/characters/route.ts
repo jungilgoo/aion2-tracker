@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 import crypto from 'crypto';
 
 // 비밀번호 해싱 함수
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Adding character:', name);
+    logger.log('Adding character:', name);
 
     // 중복 체크
     const { data: existing } = await supabaseAdmin
@@ -49,20 +50,20 @@ export async function POST(request: NextRequest) {
       });
 
     if (error) {
-      console.error('Supabase insert error:', error);
+      logger.error('Supabase insert error:', error);
       return NextResponse.json(
         { message: '캐릭터 추가 실패', error: error.message },
         { status: 500 }
       );
     }
 
-    console.log('Character added successfully');
+    logger.log('Character added successfully');
 
     return NextResponse.json({
       message: '캐릭터가 추가되었습니다. 내일 오전 9시 자동 업데이트 시 아이템 레벨이 수집됩니다.'
     });
   } catch (error) {
-    console.error('Error in POST /api/characters:', error);
+    logger.error('Error in POST /api/characters:', error);
     return NextResponse.json(
       { message: '서버 오류가 발생했습니다', error: String(error) },
       { status: 500 }
@@ -114,7 +115,7 @@ export async function DELETE(request: NextRequest) {
       .eq('id', character.id);
 
     if (error) {
-      console.error('Supabase delete error:', error);
+      logger.error('Supabase delete error:', error);
       return NextResponse.json(
         { message: '삭제 실패', error: error.message },
         { status: 500 }
@@ -123,7 +124,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ message: '캐릭터가 삭제되었습니다' });
   } catch (error) {
-    console.error('Error in DELETE /api/characters:', error);
+    logger.error('Error in DELETE /api/characters:', error);
     return NextResponse.json(
       { message: '서버 오류가 발생했습니다' },
       { status: 500 }
