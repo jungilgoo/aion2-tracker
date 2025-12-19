@@ -84,14 +84,44 @@ async function scrapeCharacter(page, characterName) {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(TIMING.DETAIL_PAGE_DELAY);
 
-    // 6. 아이템 레벨 추출
+    // 6. 아이템 레벨 및 클래스 추출
     const itemLevel = await page.$eval('.profile__info-item-level span', el => el.textContent.trim());
 
+    // 클래스 정보 추출 (여러 선택자 시도)
+    let characterClass = null;
+    try {
+      // 첫 번째 시도: 일반적인 클래스 선택자
+      characterClass = await page.$eval('.profile__info-class', el => el.textContent.trim());
+    } catch (e1) {
+      try {
+        // 두 번째 시도: 직업/클래스 텍스트 찾기
+        characterClass = await page.$eval('.profile__class', el => el.textContent.trim());
+      } catch (e2) {
+        try {
+          // 세 번째 시도: dt/dd 구조에서 찾기
+          characterClass = await page.evaluate(() => {
+            const dts = document.querySelectorAll('dt');
+            for (const dt of dts) {
+              if (dt.textContent.includes('클래스') || dt.textContent.includes('직업')) {
+                const dd = dt.nextElementSibling;
+                return dd ? dd.textContent.trim() : null;
+              }
+            }
+            return null;
+          });
+        } catch (e3) {
+          console.log(`   ⚠️  Could not extract class information`);
+        }
+      }
+    }
+
     console.log(`   ✅ Item Level: ${itemLevel}`);
+    console.log(`   ✅ Class: ${characterClass || 'Unknown'}`);
 
     return {
       name: characterName,
       itemLevel: parseInt(itemLevel.replace(/,/g, '')), // 쉼표 제거 및 숫자 변환
+      characterClass: characterClass,
       server: SERVER_CONFIG.serverName,
       lastUpdated: new Date().toISOString(),
       url: page.url()
@@ -145,6 +175,7 @@ async function main() {
         .from('characters')
         .update({
           item_level: result.itemLevel,
+          character_class: result.characterClass,
           last_updated: result.lastUpdated,
           url: result.url
         })

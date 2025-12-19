@@ -15,6 +15,7 @@ const HISTORY_CONSTANTS = {
 interface Character {
   name: string;
   itemLevel: string;
+  characterClass: string;
   server: string;
   lastUpdated: string;
   url: string;
@@ -174,6 +175,7 @@ export default function CharacterList({ characters }: { characters: Character[] 
             <tr className="border-b border-gray-700">
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">순위</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">캐릭터 이름</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">클래스</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">아이템 레벨</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">전날 변화</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">1주일 변화</th>
@@ -230,6 +232,13 @@ export default function CharacterList({ characters }: { characters: Character[] 
                     >
                       {character.name}
                     </a>
+                  </td>
+
+                  {/* 클래스 */}
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-gray-300">
+                      {character.characterClass || '-'}
+                    </span>
                   </td>
 
                   {/* 아이템 레벨 */}

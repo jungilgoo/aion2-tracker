@@ -8,6 +8,7 @@ interface Character {
   id: number;
   name: string;
   itemLevel: number | null;
+  characterClass: string | null;
   server: string;
   lastUpdated: string | null;
   url: string | null;
@@ -47,6 +48,7 @@ async function getCharacters(): Promise<Character[]> {
           id: char.id,
           name: char.name,
           itemLevel: char.item_level,
+          characterClass: char.character_class,
           server: char.server,
           lastUpdated: char.last_updated,
           url: char.url,
@@ -72,6 +74,7 @@ export default async function Home() {
   const charactersForDisplay = characters.map(char => ({
     ...char,
     itemLevel: char.itemLevel?.toString() || '',
+    characterClass: char.characterClass || '',
     lastUpdated: char.lastUpdated || '',
     url: char.url || '',
     history: char.history?.map(h => ({
