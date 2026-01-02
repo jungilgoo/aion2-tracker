@@ -12,8 +12,10 @@ interface Character {
   server: string;
   lastUpdated: string | null;
   url: string | null;
+  dpsScore: number | null;
   history?: Array<{
     itemLevel: number;
+    dpsScore: number | null;
     date: string;
   }>;
 }
@@ -40,7 +42,7 @@ async function getCharacters(): Promise<Character[]> {
       characters.map(async (char) => {
         const { data: history } = await supabase
           .from('character_history')
-          .select('item_level, date')
+          .select('item_level, dps_score, date')
           .eq('character_id', char.id)
           .order('date', { ascending: true });
 
@@ -52,8 +54,10 @@ async function getCharacters(): Promise<Character[]> {
           server: char.server,
           lastUpdated: char.last_updated,
           url: char.url,
+          dpsScore: char.dps_score,
           history: history?.map(h => ({
             itemLevel: h.item_level,
+            dpsScore: h.dps_score,
             date: h.date
           })) || []
         };
@@ -77,8 +81,10 @@ export default async function Home() {
     characterClass: char.characterClass || '',
     lastUpdated: char.lastUpdated || '',
     url: char.url || '',
+    dpsScore: char.dpsScore?.toString() || '',
     history: char.history?.map(h => ({
       itemLevel: h.itemLevel.toString(),
+      dpsScore: h.dpsScore?.toString() || '',
       date: h.date
     }))
   }));

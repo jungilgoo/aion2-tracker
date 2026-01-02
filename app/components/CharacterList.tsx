@@ -19,8 +19,10 @@ interface Character {
   server: string;
   lastUpdated: string;
   url: string;
+  dpsScore: string;
   history?: Array<{
     itemLevel: string;
+    dpsScore: string;
     date: string;
   }>;
 }
@@ -177,6 +179,7 @@ export default function CharacterList({ characters }: { characters: Character[] 
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">캐릭터 이름</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">클래스</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">아이템 레벨</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">DPS 점수</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">전날 변화</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">1주일 변화</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">마지막 업데이트</th>
@@ -246,6 +249,17 @@ export default function CharacterList({ characters }: { characters: Character[] 
                     <span className="text-2xl font-bold text-blue-400">
                       {character.itemLevel ? parseInt(character.itemLevel).toLocaleString() : '-'}
                     </span>
+                  </td>
+
+                  {/* DPS 점수 */}
+                  <td className="px-6 py-4">
+                    {character.dpsScore ? (
+                      <span className="text-xl font-semibold text-purple-400">
+                        {parseInt(character.dpsScore).toLocaleString()}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-gray-500">수집 중</span>
+                    )}
                   </td>
 
                   {/* 전날 변화 */}
