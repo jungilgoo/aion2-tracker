@@ -221,24 +221,58 @@ async function scrapeAtoolScore(page, characterName) {
     // 6. 검색 결과 대기
     await page.waitForTimeout(TIMING.ATOOL_SEARCH_DELAY);
 
-    // 7. DPS 점수 추출
-    const dpsScore = await page.evaluate(() => {
+    // 7. DPS 점수 추출 시도
+    let dpsScore = await page.evaluate(() => {
       const scoreElement = document.querySelector('#dps-score-value');
       if (scoreElement) {
         const scoreText = scoreElement.textContent.trim();
         // 쉼표 제거 후 숫자로 변환 (예: "37,475" → 37475)
-        return parseInt(scoreText.replace(/,/g, ''));
+        const score = parseInt(scoreText.replace(/,/g, ''));
+        return isNaN(score) ? null : score;
       }
       return null;
     });
 
-    if (dpsScore !== null) {
-      console.log(`   ✅ DPS Score: ${dpsScore.toLocaleString()}`);
-      return dpsScore;
+    // 8. DPS 점수가 없으면 "갱신하기" 버튼 클릭
+    if (dpsScore === null) {
+      console.log('   ⚠️  DPS 점수 없음 → 갱신 시도');
+
+      const refreshButton = await page.$('#character-refresh-btn');
+      if (refreshButton) {
+        try {
+          await refreshButton.click();
+          console.log('   🔄 갱신하기 버튼 클릭');
+
+          // 갱신 대기 (최대 10초)
+          await page.waitForTimeout(10000);
+
+          // 다시 DPS 점수 추출 시도
+          dpsScore = await page.evaluate(() => {
+            const scoreElement = document.querySelector('#dps-score-value');
+            if (scoreElement) {
+              const scoreText = scoreElement.textContent.trim();
+              const score = parseInt(scoreText.replace(/,/g, ''));
+              return isNaN(score) ? null : score;
+            }
+            return null;
+          });
+
+          if (dpsScore !== null) {
+            console.log(`   ✅ 갱신 후 DPS Score: ${dpsScore.toLocaleString()}`);
+          } else {
+            console.log('   ⚠️  갱신 후에도 DPS 점수를 찾을 수 없습니다');
+          }
+        } catch (error) {
+          console.log('   ⚠️  갱신 실패:', error.message);
+        }
+      } else {
+        console.log('   ⚠️  갱신하기 버튼을 찾을 수 없습니다 (데이터 없음)');
+      }
     } else {
-      console.log('   ⚠️  DPS 점수를 찾을 수 없습니다');
-      return null;
+      console.log(`   ✅ DPS Score: ${dpsScore.toLocaleString()}`);
     }
+
+    return dpsScore;
 
   } catch (error) {
     console.error(`   ❌ Error fetching DPS score for ${characterName}:`, error.message);
