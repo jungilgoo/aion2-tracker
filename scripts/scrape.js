@@ -10,12 +10,12 @@ try {
 
 // 상수 정의
 const TIMING = {
-  REACT_APP_LOAD_DELAY: 8000,  // React 앱 로딩 대기 시간 (ms)
-  REQUEST_INTERVAL: 2000,       // 서버 부하 방지를 위한 요청 간격 (ms)
-  PAGE_LOAD_TIMEOUT: 60000,     // 페이지 로딩 타임아웃 (30초 → 60초)
-  DETAIL_PAGE_DELAY: 3000,      // 상세 페이지 로딩 대기 (ms)
-  ATOOL_PAGE_LOAD_DELAY: 2000,  // aion2tool 페이지 로딩 대기 (ms)
-  ATOOL_SEARCH_DELAY: 3000      // aion2tool 검색 결과 대기 (ms)
+  REACT_APP_LOAD_DELAY: 8000,
+  REQUEST_INTERVAL: 2000,
+  PAGE_LOAD_TIMEOUT: 60000,
+  DETAIL_PAGE_DELAY: 3000,
+  ATOOL_PAGE_LOAD_DELAY: 2000,
+  ATOOL_SEARCH_DELAY: 3000
 };
 
 // Supabase 초기화
@@ -31,7 +31,7 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 서버 정보 (마족 루미엘 = race:2, serverId:2004)
+// 서버 정보
 const SERVER_CONFIG = {
   race: 2,
   serverId: 2004,
@@ -70,18 +70,14 @@ async function scrapeCharacter(page, characterName) {
   console.log(`\n🔍 Searching for: ${characterName}`);
 
   try {
-    // 1. URL 직접 구성하여 검색 결과 페이지로 이동
     const searchUrl = `https://aion2.plaync.com/ko-kr/characters/index?race=${SERVER_CONFIG.race}&serverId=${SERVER_CONFIG.serverId}&keyword=${encodeURIComponent(characterName)}`;
     console.log(`   URL: ${searchUrl}`);
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: TIMING.PAGE_LOAD_TIMEOUT });
 
-    // React 앱 로딩 대기
     await page.waitForTimeout(TIMING.REACT_APP_LOAD_DELAY);
 
-    // 2. 검색 결과 항목 찾기
     console.log(`   Looking for search results...`);
 
-    // 3. 모든 검색 결과 항목 가져오기
     const resultItems = await page.$$('.search-result__item');
     console.log(`   Found ${resultItems.length} result items`);
 
@@ -90,7 +86,6 @@ async function scrapeCharacter(page, characterName) {
       return null;
     }
 
-    // 4. 정확히 일치하는 캐릭터 찾기
     let targetItem = null;
 
     for (const item of resultItems) {
@@ -110,29 +105,20 @@ async function scrapeCharacter(page, characterName) {
       return null;
     }
 
-    // 5. 캐릭터 항목 클릭
     console.log(`   Clicking character item...`);
     await targetItem.click();
 
-    // 페이지 이동 대기
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(TIMING.DETAIL_PAGE_DELAY);
 
-    // 6. 아이템 레벨 및 클래스 추출
     const itemLevel = await page.$eval('.profile__info-item-level span', el => el.textContent.trim());
 
-    // 클래스 정보 추출 (이미지 src에서 추출)
     let characterClass = null;
     try {
-      // 클래스 아이콘 이미지에서 추출
       const classImageSrc = await page.$eval('img[src*="class_icon_"]', el => el.src);
-
-      // URL에서 클래스명 추출: class_icon_elementalist.png → elementalist
       const match = classImageSrc.match(/class_icon_(\w+)\.png/);
       if (match && match[1]) {
         const classKey = match[1];
-
-        // 영문 클래스명을 한글로 변환 (AION2 클래스)
         const classNames = {
           'elementalist': '정령성',
           'assassin': '살성',
@@ -143,8 +129,7 @@ async function scrapeCharacter(page, characterName) {
           'sorcerer': '마도성',
           'templar': '수호성'
         };
-
-        characterClass = classNames[classKey] || classKey; // 매핑 없으면 영문 그대로
+        characterClass = classNames[classKey] || classKey;
         console.log(`   🎯 Class detected: ${classKey} → ${characterClass}`);
       }
     } catch (error) {
@@ -156,7 +141,7 @@ async function scrapeCharacter(page, characterName) {
 
     return {
       name: characterName,
-      itemLevel: parseInt(itemLevel.replace(/,/g, '')), // 쉼표 제거 및 숫자 변환
+      itemLevel: parseInt(itemLevel.replace(/,/g, '')),
       characterClass: characterClass,
       server: SERVER_CONFIG.serverName,
       lastUpdated: new Date().toISOString(),
@@ -170,7 +155,7 @@ async function scrapeCharacter(page, characterName) {
 }
 
 /**
- * aion2tool.com에서 DPS 점수 추출 (BOT 감지 우회 + 재시도 로직)
+ * aion2tool.com에서 DPS 점수 추출
  */
 async function scrapeAtoolScore(page, characterName, retries = 2) {
   console.log(`\n🎯 Fetching DPS score from aion2tool.com: ${characterName}`);
@@ -181,19 +166,15 @@ async function scrapeAtoolScore(page, characterName, retries = 2) {
         console.log(`   🔄 Retry attempt ${attempt}/${retries}`);
       }
 
-      // navigator.webdriver 속성 제거 및 기타 봇 감지 우회
       await page.addInitScript(() => {
-        // webdriver 속성 제거
         Object.defineProperty(navigator, 'webdriver', {
           get: () => undefined
         });
         
-        // Chrome 객체 추가
         window.chrome = {
           runtime: {}
         };
         
-        // Permissions 속성 수정
         const originalQuery = window.navigator.permissions.query;
         window.navigator.permissions.query = (parameters) => (
           parameters.name === 'notifications' ?
@@ -201,141 +182,98 @@ async function scrapeAtoolScore(page, characterName, retries = 2) {
             originalQuery(parameters)
         );
         
-        // Plugin 배열 추가
         Object.defineProperty(navigator, 'plugins', {
           get: () => [1, 2, 3, 4, 5]
         });
         
-        // Languages 설정
         Object.defineProperty(navigator, 'languages', {
           get: () => ['ko-KR', 'ko', 'en-US', 'en']
         });
       });
 
-      // 1. aion2tool.com 메인 페이지로 이동
       await page.goto('https://aion2tool.com', {
         waitUntil: 'domcontentloaded',
         timeout: TIMING.PAGE_LOAD_TIMEOUT
       });
       
       console.log(`   ✅ Page loaded successfully`);
-      await page.waitForTimeout(TIMING.ATOOL_PAGE_LOAD_DELAY);
+      await page.waitForTimeout(TIMING.ATOOL_PAGE_LOAD_DELAY + 1000);
 
-      // 2. 캐릭터 탭 활성화 (라디오 버튼)
-      const tabActivated = await page.evaluate(() => {
-        const tabRadio = document.querySelector('#tab-character');
-        if (tabRadio) {
-          tabRadio.checked = true;
-          tabRadio.dispatchEvent(new Event('change', { bubbles: true }));
-          return true;
-        }
-        return false;
-      });
-
-      if (!tabActivated) {
-        console.log('   ⚠️  캐릭터 탭을 찾을 수 없습니다');
+      const searchInput = await page.$('#character-keyword');
+      if (!searchInput) {
+        console.log('   ❌ 검색창을 찾을 수 없습니다 (#character-keyword)');
+        await page.screenshot({ path: `debug-no-input-${Date.now()}.png` });
         return null;
       }
+      console.log('   ✅ 검색창 발견: #character-keyword');
+
+      await searchInput.click();
+      await searchInput.fill('');
+      await searchInput.type(characterName, { delay: 100 });
+      console.log(`   ✅ 검색어 입력: "${characterName}"`);
 
       await page.waitForTimeout(500);
 
-      // 3. 서버 선택 (루미엘)
-      const serverSelected = await page.evaluate(() => {
-        const serverSelect = document.querySelector('select');
-        if (serverSelect) {
-          const lumielOption = Array.from(serverSelect.options).find(opt =>
-            opt.textContent.includes('루미엘')
-          );
-          if (lumielOption) {
-            serverSelect.value = lumielOption.value;
-            serverSelect.dispatchEvent(new Event('change', { bubbles: true }));
-            return true;
-          }
-        }
-        return false;
-      });
-
-      if (serverSelected) {
-        console.log('   ✅ 서버 선택: 루미엘');
-        await page.waitForTimeout(500);
-      }
-
-      // 4. 검색 입력
-      const searchInput = await page.$('input[type="text"]');
-      if (!searchInput) {
-        console.log('   ❌ 검색창을 찾을 수 없습니다');
-        return null;
-      }
-
-      await searchInput.fill(characterName);
-      console.log(`   ✅ 검색어 입력: "${characterName}"`);
-
-      // 5. 검색 버튼 클릭
-      const searchButton = await page.$('button:has-text("검색")');
-      if (searchButton) {
-        await searchButton.click();
-        console.log('   ✅ 검색 버튼 클릭');
-      } else {
-        // 검색 버튼이 없으면 Enter 키 시도
+      const searchButton = await page.$('#search-button');
+      if (!searchButton) {
+        console.log('   ⚠️  검색 버튼을 찾을 수 없어서 Enter 키 사용');
         await searchInput.press('Enter');
-        console.log('   ✅ Enter 키 입력');
+      } else {
+        await searchButton.click();
+        console.log('   ✅ 검색 버튼 클릭 (#search-button)');
       }
 
-      // 6. 검색 결과 대기
       await page.waitForTimeout(TIMING.ATOOL_SEARCH_DELAY);
 
-      // 7. DPS 점수 추출 시도
       let dpsScore = await page.evaluate(() => {
         const scoreElement = document.querySelector('#dps-score-value');
         if (scoreElement) {
           const scoreText = scoreElement.textContent.trim();
-          // 쉼표 제거 후 숫자로 변환 (예: "37,475" → 37475)
           const score = parseInt(scoreText.replace(/,/g, ''));
           return isNaN(score) ? null : score;
         }
         return null;
       });
-
-      // 8. DPS 점수가 없으면 "갱신하기" 버튼 클릭
-      if (dpsScore === null) {
-        console.log('   ⚠️  DPS 점수 없음 → 갱신 시도');
-
-        const refreshButton = await page.$('#character-refresh-btn');
-        if (refreshButton) {
-          try {
-            await refreshButton.click();
-            console.log('   🔄 갱신하기 버튼 클릭');
-
-            // 갱신 대기 (최대 10초)
-            await page.waitForTimeout(10000);
-
-            // 다시 DPS 점수 추출 시도
-            dpsScore = await page.evaluate(() => {
-              const scoreElement = document.querySelector('#dps-score-value');
-              if (scoreElement) {
-                const scoreText = scoreElement.textContent.trim();
-                const score = parseInt(scoreText.replace(/,/g, ''));
-                return isNaN(score) ? null : score;
-              }
-              return null;
-            });
-
-            if (dpsScore !== null) {
-              console.log(`   ✅ 갱신 후 DPS Score: ${dpsScore.toLocaleString()}`);
-            } else {
-              console.log('   ⚠️  갱신 후에도 DPS 점수를 찾을 수 없습니다');
-            }
-          } catch (error) {
-            console.log('   ⚠️  갱신 실패:', error.message);
-          }
-        } else {
-          console.log('   ⚠️  갱신하기 버튼을 찾을 수 없습니다 (데이터 없음)');
-        }
-      } else {
+      
+      if (dpsScore !== null) {
         console.log(`   ✅ DPS Score: ${dpsScore.toLocaleString()}`);
+        return dpsScore;
       }
 
-      return dpsScore;
+      console.log('   ⚠️  DPS 점수 없음 → 갱신 또는 데이터 없음 확인');
+
+      const refreshButton = await page.$('#character-refresh-btn');
+      if (refreshButton) {
+        try {
+          await refreshButton.click();
+          console.log('   🔄 갱신하기 버튼 클릭');
+
+          await page.waitForTimeout(10000);
+
+          dpsScore = await page.evaluate(() => {
+            const scoreElement = document.querySelector('#dps-score-value');
+            if (scoreElement) {
+              const scoreText = scoreElement.textContent.trim();
+              const score = parseInt(scoreText.replace(/,/g, ''));
+              return isNaN(score) ? null : score;
+            }
+            return null;
+          });
+
+          if (dpsScore !== null) {
+            console.log(`   ✅ 갱신 후 DPS Score: ${dpsScore.toLocaleString()}`);
+            return dpsScore;
+          } else {
+            console.log('   ⚠️  갱신 후에도 DPS 점수를 찾을 수 없습니다');
+          }
+        } catch (error) {
+          console.log('   ⚠️  갱신 실패:', error.message);
+        }
+      } else {
+        console.log('   ⚠️  갱신하기 버튼을 찾을 수 없습니다 (캐릭터 데이터 없음)');
+      }
+
+      return null;
 
     } catch (error) {
       console.log(`   ⚠️ Attempt ${attempt} failed: ${error.message}`);
@@ -343,7 +281,6 @@ async function scrapeAtoolScore(page, characterName, retries = 2) {
       if (attempt === retries) {
         console.log(`   ❌ All ${retries} attempts failed for ${characterName}`);
         
-        // 디버깅용 스크린샷 (선택사항)
         try {
           await page.screenshot({ 
             path: `debug-${characterName}-${Date.now()}.png` 
@@ -356,7 +293,6 @@ async function scrapeAtoolScore(page, characterName, retries = 2) {
         return null;
       }
       
-      // 재시도 전 대기
       await page.waitForTimeout(3000);
     }
   }
@@ -371,7 +307,6 @@ async function main() {
   console.log('🚀 AION2 Character Tracker - Scraping Started\n');
   console.log(`📅 ${new Date().toLocaleString('ko-KR')}\n`);
 
-  // Supabase에서 캐릭터 목록 가져오기
   const { data: characters, error } = await supabase
     .from('characters')
     .select('id, name');
@@ -388,39 +323,32 @@ async function main() {
     return;
   }
 
-  // BOT 감지 우회 설정으로 브라우저 실행
   const browser = await chromium.launch({
     headless: true,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-blink-features=AutomationControlled', // 가장 중요!
+      '--disable-blink-features=AutomationControlled',
       '--disable-dev-shm-usage',
       '--disable-gpu',
       '--disable-features=IsolateOrigins,site-per-process'
     ]
   });
 
-  // Stealth 컨텍스트 생성
   const context = await createStealthContext(browser);
   const page = await context.newPage();
 
   const results = [];
 
-  // 각 캐릭터 순회하며 데이터 수집
   for (const char of characters) {
-    // 1. 공식 사이트에서 아이템 레벨 수집
     const result = await scrapeCharacter(page, char.name);
 
     if (result) {
-      // 2. aion2tool.com에서 DPS 점수 수집
       const dpsScore = await scrapeAtoolScore(page, char.name);
 
-      // 결과에 DPS 점수 추가
       result.dpsScore = dpsScore;
       results.push(result);
 
-      // 3. 캐릭터 정보 업데이트 (아이템 레벨 + DPS 점수)
       const updateData = {
         item_level: result.itemLevel,
         character_class: result.characterClass,
@@ -428,7 +356,6 @@ async function main() {
         url: result.url
       };
 
-      // DPS 점수가 있으면 추가
       if (dpsScore !== null) {
         updateData.dps_score = dpsScore;
       }
@@ -442,14 +369,12 @@ async function main() {
         console.error(`   ❌ Error updating character ${char.name}:`, updateError);
       }
 
-      // 4. 히스토리 추가 (아이템 레벨 + DPS 점수)
       const historyData = {
         character_id: char.id,
         item_level: result.itemLevel,
         date: result.lastUpdated
       };
 
-      // DPS 점수가 있으면 추가
       if (dpsScore !== null) {
         historyData.dps_score = dpsScore;
       }
@@ -462,7 +387,6 @@ async function main() {
         console.error(`   ❌ Error adding history for ${char.name}:`, historyError);
       }
 
-      // 30일 이전 히스토리 삭제
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -477,7 +401,6 @@ async function main() {
       }
     }
 
-    // 요청 간격 (서버 부하 방지)
     await page.waitForTimeout(TIMING.REQUEST_INTERVAL);
   }
 
@@ -492,7 +415,6 @@ async function main() {
   console.log('');
 }
 
-// 실행
 main().catch(error => {
   console.error('\n❌ Fatal error:', error);
   process.exit(1);
