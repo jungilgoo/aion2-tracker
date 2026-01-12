@@ -8,14 +8,17 @@ try {
   // GitHub Actions에서는 환경 변수가 이미 설정되어 있으므로 무시
 }
 
+// CI 환경 감지
+const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+
 // 상수 정의
 const TIMING = {
   REACT_APP_LOAD_DELAY: 8000,  // React 앱 로딩 대기 시간 (ms)
   REQUEST_INTERVAL: 2000,       // 서버 부하 방지를 위한 요청 간격 (ms)
-  PAGE_LOAD_TIMEOUT: 30000,     // 페이지 로딩 타임아웃 (ms)
+  PAGE_LOAD_TIMEOUT: isCI ? 60000 : 30000,     // 페이지 로딩 타임아웃 (ms) - CI에서 2배
   DETAIL_PAGE_DELAY: 3000,      // 상세 페이지 로딩 대기 (ms)
-  ATOOL_PAGE_LOAD_DELAY: 2000,  // aion2tool 페이지 로딩 대기 (ms)
-  ATOOL_SEARCH_DELAY: 3000      // aion2tool 검색 결과 대기 (ms)
+  ATOOL_PAGE_LOAD_DELAY: isCI ? 3000 : 2000,  // aion2tool 페이지 로딩 대기 (ms) - CI에서 더 길게
+  ATOOL_SEARCH_DELAY: isCI ? 5000 : 3000      // aion2tool 검색 결과 대기 (ms) - CI에서 더 길게
 };
 
 // Supabase 초기화
@@ -153,8 +156,11 @@ async function scrapeAtoolScore(page, characterName) {
   try {
     // 1. aion2tool.com 메인 페이지로 이동
     console.log('   → aion2tool.com 페이지 로딩 중...');
+    console.log(`   ⏱️  타임아웃: ${TIMING.PAGE_LOAD_TIMEOUT / 1000}초 (CI 환경: ${isCI})`);
+
+    // CI 환경에서는 더 관대한 대기 전략 사용
     await page.goto('https://aion2tool.com', {
-      waitUntil: 'networkidle',
+      waitUntil: isCI ? 'domcontentloaded' : 'load',  // CI에서는 domcontentloaded로 더 빠르게
       timeout: TIMING.PAGE_LOAD_TIMEOUT
     });
     await page.waitForTimeout(TIMING.ATOOL_PAGE_LOAD_DELAY);
@@ -322,7 +328,9 @@ async function scrapeAtoolScore(page, characterName) {
  */
 async function main() {
   console.log('🚀 AION2 Character Tracker - Scraping Started\n');
-  console.log(`📅 ${new Date().toLocaleString('ko-KR')}\n`);
+  console.log(`📅 ${new Date().toLocaleString('ko-KR')}`);
+  console.log(`🖥️  환경: ${isCI ? 'CI (GitHub Actions)' : '로컬'}`);
+  console.log(`⏱️  타임아웃 설정: ${TIMING.PAGE_LOAD_TIMEOUT / 1000}초\n`);
 
   // Supabase에서 캐릭터 목록 가져오기
   const { data: characters, error } = await supabase
