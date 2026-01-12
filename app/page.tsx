@@ -37,32 +37,50 @@ async function getCharacters(): Promise<Character[]> {
       return [];
     }
 
-    // 각 캐릭터의 히스토리 가져오기
-    const charactersWithHistory = await Promise.all(
-      characters.map(async (char) => {
-        const { data: history } = await supabase
-          .from('character_history')
-          .select('item_level, dps_score, date')
-          .eq('character_id', char.id)
-          .order('date', { ascending: true });
+    // 모든 캐릭터의 ID 수집
+    const characterIds = characters.map(char => char.id);
 
-        return {
-          id: char.id,
-          name: char.name,
-          itemLevel: char.item_level,
-          characterClass: char.character_class,
-          server: char.server,
-          lastUpdated: char.last_updated,
-          url: char.url,
-          dpsScore: char.dps_score,
-          history: history?.map(h => ({
-            itemLevel: h.item_level,
-            dpsScore: h.dps_score,
-            date: h.date
-          })) || []
-        };
-      })
-    );
+    // 모든 히스토리를 한 번의 쿼리로 가져오기 (N+1 문제 해결)
+    const { data: allHistory, error: historyError } = await supabase
+      .from('character_history')
+      .select('character_id, item_level, dps_score, date')
+      .in('character_id', characterIds)
+      .order('date', { ascending: true });
+
+    if (historyError) {
+      logger.error('Error fetching history:', historyError);
+    }
+
+    // 히스토리를 캐릭터별로 그룹화
+    const historyByCharacterId = new Map<number, Array<{
+      itemLevel: number;
+      dpsScore: number | null;
+      date: string;
+    }>>();
+
+    allHistory?.forEach(h => {
+      if (!historyByCharacterId.has(h.character_id)) {
+        historyByCharacterId.set(h.character_id, []);
+      }
+      historyByCharacterId.get(h.character_id)!.push({
+        itemLevel: h.item_level,
+        dpsScore: h.dps_score,
+        date: h.date
+      });
+    });
+
+    // 캐릭터와 히스토리 결합
+    const charactersWithHistory = characters.map(char => ({
+      id: char.id,
+      name: char.name,
+      itemLevel: char.item_level,
+      characterClass: char.character_class,
+      server: char.server,
+      lastUpdated: char.last_updated,
+      url: char.url,
+      dpsScore: char.dps_score,
+      history: historyByCharacterId.get(char.id) || []
+    }));
 
     return charactersWithHistory;
   } catch (error) {

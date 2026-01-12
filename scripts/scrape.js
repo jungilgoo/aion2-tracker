@@ -152,13 +152,16 @@ async function scrapeAtoolScore(page, characterName) {
 
   try {
     // 1. aion2tool.com 메인 페이지로 이동
+    console.log('   → aion2tool.com 페이지 로딩 중...');
     await page.goto('https://aion2tool.com', {
       waitUntil: 'networkidle',
       timeout: TIMING.PAGE_LOAD_TIMEOUT
     });
     await page.waitForTimeout(TIMING.ATOOL_PAGE_LOAD_DELAY);
+    console.log('   ✓ 페이지 로드 완료');
 
     // 2. 캐릭터 탭 활성화 (라디오 버튼)
+    console.log('   → 캐릭터 탭 활성화 중...');
     const tabActivated = await page.evaluate(() => {
       const tabRadio = document.querySelector('#tab-character');
       if (tabRadio) {
@@ -170,13 +173,14 @@ async function scrapeAtoolScore(page, characterName) {
     });
 
     if (!tabActivated) {
-      console.log('   ⚠️  캐릭터 탭을 찾을 수 없습니다');
+      console.log('   ❌ 캐릭터 탭을 찾을 수 없습니다');
       return null;
     }
-
+    console.log('   ✓ 캐릭터 탭 활성화 완료');
     await page.waitForTimeout(500);
 
     // 3. 서버 선택 (루미엘)
+    console.log('   → 서버 선택 중 (루미엘)...');
     const serverSelected = await page.evaluate(() => {
       const serverSelect = document.querySelector('select');
       if (serverSelect) {
@@ -186,18 +190,21 @@ async function scrapeAtoolScore(page, characterName) {
         if (lumielOption) {
           serverSelect.value = lumielOption.value;
           serverSelect.dispatchEvent(new Event('change', { bubbles: true }));
-          return true;
+          return lumielOption.textContent;
         }
       }
-      return false;
+      return null;
     });
 
     if (serverSelected) {
-      console.log('   ✅ 서버 선택: 루미엘');
+      console.log(`   ✓ 서버 선택: ${serverSelected}`);
       await page.waitForTimeout(500);
+    } else {
+      console.log('   ⚠️  서버 선택 실패 (기본값 사용 가능)');
     }
 
     // 4. 검색 입력
+    console.log('   → 검색어 입력 중...');
     const searchInput = await page.$('input[type="text"]');
     if (!searchInput) {
       console.log('   ❌ 검색창을 찾을 수 없습니다');
@@ -205,23 +212,41 @@ async function scrapeAtoolScore(page, characterName) {
     }
 
     await searchInput.fill(characterName);
-    console.log(`   ✅ 검색어 입력: "${characterName}"`);
+    console.log(`   ✓ 검색어 입력 완료: "${characterName}"`);
 
     // 5. 검색 버튼 클릭
+    console.log('   → 검색 실행 중...');
     const searchButton = await page.$('button:has-text("검색")');
     if (searchButton) {
       await searchButton.click();
-      console.log('   ✅ 검색 버튼 클릭');
+      console.log('   ✓ 검색 버튼 클릭');
     } else {
-      // 검색 버튼이 없으면 Enter 키 시도
       await searchInput.press('Enter');
-      console.log('   ✅ Enter 키 입력');
+      console.log('   ✓ Enter 키로 검색');
     }
 
     // 6. 검색 결과 대기
+    console.log('   → 검색 결과 로딩 대기 중...');
     await page.waitForTimeout(TIMING.ATOOL_SEARCH_DELAY);
 
-    // 7. DPS 점수 추출 시도
+    // 7. 캐릭터 정보 확인 (닉네임으로 검증)
+    const characterFound = await page.evaluate((name) => {
+      const nicknameElement = document.querySelector('#result-nickname');
+      if (nicknameElement) {
+        const foundName = nicknameElement.textContent.trim();
+        return foundName === name;
+      }
+      return false;
+    }, characterName);
+
+    if (!characterFound) {
+      console.log(`   ⚠️  캐릭터 "${characterName}"를 찾을 수 없습니다`);
+      return null;
+    }
+    console.log(`   ✓ 캐릭터 "${characterName}" 발견`);
+
+    // 8. DPS 점수 추출 시도
+    console.log('   → DPS 점수 추출 중...');
     let dpsScore = await page.evaluate(() => {
       const scoreElement = document.querySelector('#dps-score-value');
       if (scoreElement) {
@@ -233,18 +258,29 @@ async function scrapeAtoolScore(page, characterName) {
       return null;
     });
 
-    // 8. DPS 점수가 없으면 "갱신하기" 버튼 클릭
+    // 9. DPS 점수가 없으면 "갱신하기" 버튼 클릭
     if (dpsScore === null) {
       console.log('   ⚠️  DPS 점수 없음 → 갱신 시도');
 
       const refreshButton = await page.$('#character-refresh-btn');
       if (refreshButton) {
+        // 쿨다운 확인
+        const cooldown = await page.evaluate(() => {
+          const cooldownElement = document.querySelector('#character-refresh-cooldown');
+          return cooldownElement ? cooldownElement.textContent.trim() : '';
+        });
+
+        if (cooldown) {
+          console.log(`   ⏳ 갱신 쿨다운: ${cooldown}`);
+          return null; // 쿨다운 중이면 null 반환
+        }
+
         try {
           await refreshButton.click();
           console.log('   🔄 갱신하기 버튼 클릭');
 
-          // 갱신 대기 (최대 10초)
-          await page.waitForTimeout(10000);
+          // 갱신 대기 (5초로 단축)
+          await page.waitForTimeout(5000);
 
           // 다시 DPS 점수 추출 시도
           dpsScore = await page.evaluate(() => {
@@ -263,10 +299,10 @@ async function scrapeAtoolScore(page, characterName) {
             console.log('   ⚠️  갱신 후에도 DPS 점수를 찾을 수 없습니다');
           }
         } catch (error) {
-          console.log('   ⚠️  갱신 실패:', error.message);
+          console.log('   ❌ 갱신 실패:', error.message);
         }
       } else {
-        console.log('   ⚠️  갱신하기 버튼을 찾을 수 없습니다 (데이터 없음)');
+        console.log('   ⚠️  갱신하기 버튼을 찾을 수 없습니다');
       }
     } else {
       console.log(`   ✅ DPS Score: ${dpsScore.toLocaleString()}`);
@@ -276,6 +312,7 @@ async function scrapeAtoolScore(page, characterName) {
 
   } catch (error) {
     console.error(`   ❌ Error fetching DPS score for ${characterName}:`, error.message);
+    console.error(`   Stack trace:`, error.stack);
     return null;
   }
 }
