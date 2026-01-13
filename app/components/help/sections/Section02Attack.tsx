@@ -3,7 +3,7 @@ import DataTable from '../DataTable';
 
 export default function Section02Attack() {
   return (
-    <div className="space-y-4 text-gray-300">
+    <div className="space-y-4 text-gray-200 leading-relaxed">
       <div>
         <h4 className="text-lg font-semibold text-white mb-2">2.1 기본 공식</h4>
         <CodeBlock>

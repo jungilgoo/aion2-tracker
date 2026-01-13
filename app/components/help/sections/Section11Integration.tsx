@@ -3,7 +3,7 @@ import DataTable from '../DataTable';
 
 export default function Section11Integration() {
   return (
-    <div className="space-y-4 text-gray-300">
+    <div className="space-y-4 text-gray-200 leading-relaxed">
       <div>
         <h4 className="text-lg font-semibold text-white mb-2">11.1 계산 단계</h4>
         <CodeBlock>

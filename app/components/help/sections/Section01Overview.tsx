@@ -2,7 +2,7 @@ import CodeBlock from '../CodeBlock';
 
 export default function Section01Overview() {
   return (
-    <div className="space-y-4 text-gray-300">
+    <div className="space-y-4 text-gray-200 leading-relaxed">
       <div>
         <h4 className="text-lg font-semibold text-white mb-2">1.1 핵심 공식</h4>
         <CodeBlock>

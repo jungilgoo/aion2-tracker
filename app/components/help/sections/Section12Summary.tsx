@@ -2,7 +2,7 @@ import CodeBlock from '../CodeBlock';
 
 export default function Section12Summary() {
   return (
-    <div className="space-y-4 text-gray-300">
+    <div className="space-y-4 text-gray-200 leading-relaxed">
       <div>
         <h4 className="text-lg font-semibold text-white mb-2">12.1 계산 원리</h4>
         <ol className="list-decimal list-inside space-y-1">

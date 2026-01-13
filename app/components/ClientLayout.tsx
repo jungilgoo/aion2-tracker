@@ -19,14 +19,11 @@ export default function ClientLayout({
           {/* 도움말 버튼 - 우측 상단 */}
           <button
             onClick={() => setIsHelpOpen(true)}
-            className="absolute top-0 right-0 p-2 text-gray-400 hover:text-white transition-colors rounded-full hover:bg-gray-800"
-            aria-label="아툴 계산 방식 도움말"
-            title="아툴 계산 방식 도움말"
+            className="absolute top-0 right-0 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 transition-colors rounded-lg border border-gray-600 hover:border-gray-500"
+            aria-label="아툴 점수 산출 방식"
+            title="아툴 점수 산출 방식"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            아툴 점수 산출 방식
           </button>
 
           <h1 className="text-4xl font-bold text-center mb-2">

@@ -2,7 +2,7 @@ import CodeBlock from '../CodeBlock';
 
 export default function Section04Skill() {
   return (
-    <div className="space-y-4 text-gray-300">
+    <div className="space-y-4 text-gray-200 leading-relaxed">
       <div>
         <h4 className="text-lg font-semibold text-white mb-2">4.1 3가지 카테고리</h4>
         <ol className="list-decimal list-inside space-y-1">

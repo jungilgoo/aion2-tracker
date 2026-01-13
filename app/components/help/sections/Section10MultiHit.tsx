@@ -2,7 +2,7 @@ import CodeBlock from '../CodeBlock';
 
 export default function Section10MultiHit() {
   return (
-    <div className="space-y-4 text-gray-300">
+    <div className="space-y-4 text-gray-200 leading-relaxed">
       <div>
         <h4 className="text-lg font-semibold text-white mb-2">10.1 수집 출처</h4>
         <p>영혼 각인, 마석 각인, 데바니온에서 수집</p>

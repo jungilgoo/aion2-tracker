@@ -3,7 +3,7 @@ import DataTable from '../DataTable';
 
 export default function Section09Perfect() {
   return (
-    <div className="space-y-4 text-gray-300">
+    <div className="space-y-4 text-gray-200 leading-relaxed">
       <div>
         <h4 className="text-lg font-semibold text-white mb-2">9.1 수집 출처</h4>
         <DataTable

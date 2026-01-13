@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -76,6 +76,84 @@ function findHistoryByDaysAgo(
 }
 
 /**
+ * DPS 점수 히스토리를 일수 기준으로 검색
+ *
+ * @param history - 히스토리 배열 (DPS 점수 포함)
+ * @param daysAgo - 찾으려는 일수 (1 = 전날)
+ * @param currentDate - 기준 시점 (character.lastUpdated)
+ * @returns 가장 가까운 과거 히스토리 항목 또는 null
+ */
+function findDpsHistoryByDaysAgo(
+  history: Array<{ dpsScore: string; date: string }>,
+  daysAgo: number,
+  currentDate: string
+): { dpsScore: string; date: string } | null {
+  if (!history || history.length === 0) return null;
+
+  const current = new Date(currentDate);
+  const targetMinHours = daysAgo * HISTORY_CONSTANTS.HOURS_PER_DAY - HISTORY_CONSTANTS.TIME_TOLERANCE_HOURS;
+  const targetMaxHours = daysAgo * HISTORY_CONSTANTS.HOURS_PER_DAY + HISTORY_CONSTANTS.TIME_TOLERANCE_HOURS;
+
+  // 히스토리를 역순으로 순회 (최신부터)
+  for (let i = history.length - 1; i >= 0; i--) {
+    const historyDate = new Date(history[i].date);
+    const hoursDiff = (current.getTime() - historyDate.getTime()) / (1000 * 60 * 60);
+
+    if (hoursDiff >= targetMinHours && hoursDiff <= targetMaxHours) {
+      return history[i];
+    }
+  }
+
+  // 목표 범위에 없으면 가장 가까운 과거 항목 반환 (폴백)
+  for (let i = history.length - 1; i >= 0; i--) {
+    const historyDate = new Date(history[i].date);
+    const hoursDiff = (current.getTime() - historyDate.getTime()) / (1000 * 60 * 60);
+
+    if (hoursDiff >= targetMinHours) {
+      return history[i];
+    }
+  }
+
+  return null;
+}
+
+/**
+ * DPS 점수 전날 변화량 계산
+ *
+ * @param currentDps - 현재 DPS 점수
+ * @param targetHistory - 비교 대상 히스토리 항목
+ * @returns 변화 정보 또는 null
+ */
+function calculateDpsChangeFromHistory(
+  currentDps: string,
+  targetHistory: { dpsScore: string; date: string } | null
+): HistoryChange | null {
+  if (!targetHistory || !currentDps || !targetHistory.dpsScore) return null;
+
+  const current = parseInt(currentDps);
+  const previous = parseInt(targetHistory.dpsScore);
+
+  if (isNaN(current) || isNaN(previous)) return null;
+
+  const change = current - previous;
+
+  // 변화가 0인 경우 특별 처리
+  if (change === 0) {
+    return {
+      value: 0,
+      isPositive: true, // 중립적인 값
+      previousLevel: targetHistory.dpsScore
+    };
+  }
+
+  return {
+    value: change,
+    isPositive: change > 0,
+    previousLevel: targetHistory.dpsScore
+  };
+}
+
+/**
  * 현재 레벨과 과거 레벨의 차이를 계산합니다.
  *
  * @param currentLevel - 현재 아이템 레벨
@@ -112,18 +190,35 @@ export default function CharacterList({ characters }: { characters: Character[] 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [sortMode, setSortMode] = useState<'itemLevel' | 'dpsScore'>('itemLevel');
   const router = useRouter();
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // 아이템 레벨 기준으로 내림차순 정렬
-  const sortedCharacters = [...characters].sort((a, b) => {
-    const levelA = parseInt(a.itemLevel || '0');
-    const levelB = parseInt(b.itemLevel || '0');
-    return levelB - levelA;
-  });
+  // 정렬 로직 (정렬 모드에 따라 동적 정렬)
+  const sortedCharacters = useMemo(() => {
+    return [...characters].sort((a, b) => {
+      if (sortMode === 'itemLevel') {
+        // 아이템 레벨 내림차순
+        const levelA = parseInt(a.itemLevel || '0');
+        const levelB = parseInt(b.itemLevel || '0');
+        return levelB - levelA;
+      } else {
+        // DPS 점수 내림차순
+        const dpsA = parseInt(a.dpsScore || '0');
+        const dpsB = parseInt(b.dpsScore || '0');
+
+        // DPS가 없는 캐릭터(0)는 맨 아래
+        if (dpsA === 0 && dpsB === 0) return 0;
+        if (dpsA === 0) return 1;  // A를 뒤로
+        if (dpsB === 0) return -1; // B를 뒤로
+
+        return dpsB - dpsA;
+      }
+    });
+  }, [characters, sortMode]);
 
   const handleDeleteClick = (name: string) => {
     setCharacterToDelete(name);
@@ -168,6 +263,33 @@ export default function CharacterList({ characters }: { characters: Character[] 
 
   return (
     <>
+      {/* 정렬 토글 버튼 */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-sm text-gray-400">정렬 기준:</span>
+
+        <button
+          onClick={() => setSortMode('itemLevel')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            sortMode === 'itemLevel'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+          }`}
+        >
+          아이템 레벨 순
+        </button>
+
+        <button
+          onClick={() => setSortMode('dpsScore')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            sortMode === 'dpsScore'
+              ? 'bg-purple-600 text-white'
+              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+          }`}
+        >
+          DPS 점수 순
+        </button>
+      </div>
+
       <div className="overflow-x-auto">
         <p className="text-xs text-gray-400 mb-3">
           💡 캐릭터 이름을 클릭하면 AION2 공식 정보 페이지로 이동합니다
@@ -180,17 +302,15 @@ export default function CharacterList({ characters }: { characters: Character[] 
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">클래스</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">아이템 레벨</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">DPS 점수</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">전날 변화</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">1주일 변화</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">마지막 업데이트</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">액션</th>
             </tr>
           </thead>
           <tbody>
             {sortedCharacters.map((character, index) => {
-              // 전날 변화량 계산 (데이터가 있을 때만)
+              // 전날 변화량 계산 (아이템 레벨)
               let yesterdayChange = null;
-              let weekAgoChange = null;
+              let dpsYesterdayChange = null;
 
               if (character.itemLevel && character.lastUpdated && character.history) {
                 const yesterdayHistory = findHistoryByDaysAgo(
@@ -203,16 +323,18 @@ export default function CharacterList({ characters }: { characters: Character[] 
                   yesterdayHistory
                 );
 
-                // 1주일 전 변화량 계산
-                const weekAgoHistory = findHistoryByDaysAgo(
-                  character.history,
-                  HISTORY_CONSTANTS.DAYS_WEEK_AGO,
-                  character.lastUpdated
-                );
-                weekAgoChange = calculateChangeFromHistory(
-                  character.itemLevel,
-                  weekAgoHistory
-                );
+                // DPS 전날 변화량 계산
+                if (character.dpsScore) {
+                  const dpsYesterdayHistory = findDpsHistoryByDaysAgo(
+                    character.history,
+                    HISTORY_CONSTANTS.DAYS_YESTERDAY,
+                    character.lastUpdated
+                  );
+                  dpsYesterdayChange = calculateDpsChangeFromHistory(
+                    character.dpsScore,
+                    dpsYesterdayHistory
+                  );
+                }
               }
 
               return (
@@ -244,75 +366,39 @@ export default function CharacterList({ characters }: { characters: Character[] 
                     </span>
                   </td>
 
-                  {/* 아이템 레벨 */}
+                  {/* 아이템 레벨 (전날 변화 인라인) */}
                   <td className="px-6 py-4">
-                    <span className="text-2xl font-bold text-blue-400">
-                      {character.itemLevel ? parseInt(character.itemLevel).toLocaleString() : '-'}
-                    </span>
+                    <div className="flex flex-col">
+                      <span className="text-2xl font-bold text-blue-400">
+                        {character.itemLevel ? parseInt(character.itemLevel).toLocaleString() : '-'}
+                      </span>
+                      {yesterdayChange && yesterdayChange.value !== 0 && (
+                        <span className={`text-xs mt-1 ${
+                          yesterdayChange.isPositive ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {yesterdayChange.isPositive ? '▲' : '▼'} {Math.abs(yesterdayChange.value).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
                   </td>
 
-                  {/* DPS 점수 */}
+                  {/* DPS 점수 (전날 변화 인라인) */}
                   <td className="px-6 py-4">
                     {character.dpsScore ? (
-                      <span className="text-xl font-semibold text-purple-400">
-                        {parseInt(character.dpsScore).toLocaleString()}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="text-xl font-semibold text-purple-400">
+                          {parseInt(character.dpsScore).toLocaleString()}
+                        </span>
+                        {dpsYesterdayChange && dpsYesterdayChange.value !== 0 && (
+                          <span className={`text-xs mt-1 ${
+                            dpsYesterdayChange.isPositive ? 'text-green-400' : 'text-red-400'
+                          }`}>
+                            {dpsYesterdayChange.isPositive ? '▲' : '▼'} {Math.abs(dpsYesterdayChange.value).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-sm text-gray-500">수집 중</span>
-                    )}
-                  </td>
-
-                  {/* 전날 변화 */}
-                  <td className="px-6 py-4">
-                    {yesterdayChange ? (
-                      <div className="flex flex-col">
-                        {yesterdayChange.value === 0 ? (
-                          <span className="text-xs text-gray-500">변화 없음</span>
-                        ) : (
-                          <>
-                            <div className="flex items-center gap-1">
-                              <span className={`text-sm font-semibold ${
-                                yesterdayChange.isPositive ? 'text-green-400' : 'text-red-400'
-                              }`}>
-                                {yesterdayChange.isPositive ? '▲' : '▼'}
-                                {Math.abs(yesterdayChange.value)}
-                              </span>
-                            </div>
-                            <span className="text-xs text-gray-500">
-                              {parseInt(yesterdayChange.previousLevel).toLocaleString()}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-gray-500">데이터 없음</span>
-                    )}
-                  </td>
-
-                  {/* 1주일 변화 */}
-                  <td className="px-6 py-4">
-                    {weekAgoChange ? (
-                      <div className="flex flex-col">
-                        {weekAgoChange.value === 0 ? (
-                          <span className="text-xs text-gray-500">변화 없음</span>
-                        ) : (
-                          <>
-                            <div className="flex items-center gap-1">
-                              <span className={`text-sm font-semibold ${
-                                weekAgoChange.isPositive ? 'text-green-400' : 'text-red-400'
-                              }`}>
-                                {weekAgoChange.isPositive ? '▲' : '▼'}
-                                {Math.abs(weekAgoChange.value)}
-                              </span>
-                            </div>
-                            <span className="text-xs text-gray-500">
-                              {parseInt(weekAgoChange.previousLevel).toLocaleString()}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-gray-500">데이터 없음</span>
                     )}
                   </td>
 

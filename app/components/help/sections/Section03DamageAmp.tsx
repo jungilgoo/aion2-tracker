@@ -3,7 +3,7 @@ import DataTable from '../DataTable';
 
 export default function Section03DamageAmp() {
   return (
-    <div className="space-y-4 text-gray-300">
+    <div className="space-y-4 text-gray-200 leading-relaxed">
       <div>
         <h4 className="text-lg font-semibold text-white mb-2">3.1 4가지 피해 증폭 타입</h4>
         <ol className="list-decimal list-inside space-y-1">

@@ -14,7 +14,7 @@ import Section12Summary from './sections/Section12Summary';
 
 export default function HelpContent() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 text-base leading-relaxed">
       <AccordionSection title="1. 전투 점수 개요" defaultOpen>
         <Section01Overview />
       </AccordionSection>
