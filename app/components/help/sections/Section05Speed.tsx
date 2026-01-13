@@ -20,8 +20,14 @@ export default function Section05Speed() {
 
       <div>
         <h4 className="text-lg font-semibold text-white mb-2">5.2 DPS 계수 공식</h4>
+        <p className="text-sm text-gray-400 mb-2">
+          💡 <strong>실제 계산 방식:</strong> 이론상 공식은 아래와 같지만,
+          실제 DPS 계산 시에는 <code className="text-blue-400">1 + 전투속도%</code>를
+          계수로 사용합니다. (예: 20% → 1.20배)
+        </p>
         <CodeBlock>
-{`전투속도계수 = 1 / (1 - 전투속도%)
+{`// 이론상 공식
+전투속도계수 = 1 / (1 - 전투속도%)
 
 // 안전 장치
 if (전투속도 >= 100% || 전투속도 <= 0%) {
