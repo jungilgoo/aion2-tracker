@@ -17,8 +17,9 @@ const TIMING = {
   REQUEST_INTERVAL: 2000,       // 서버 부하 방지를 위한 요청 간격 (ms)
   PAGE_LOAD_TIMEOUT: isCI ? 60000 : 30000,     // 페이지 로딩 타임아웃 (ms) - CI에서 2배
   DETAIL_PAGE_DELAY: 3000,      // 상세 페이지 로딩 대기 (ms)
-  ATOOL_PAGE_LOAD_DELAY: isCI ? 3000 : 2000,  // aion2tool 페이지 로딩 대기 (ms) - CI에서 더 길게
-  ATOOL_SEARCH_DELAY: isCI ? 5000 : 3000      // aion2tool 검색 결과 대기 (ms) - CI에서 더 길게
+  ATOOL_PAGE_LOAD_DELAY: isCI ? 5000 : 2000,  // aion2tool 페이지 로딩 대기 (ms) - CI에서 더 길게
+  ATOOL_SEARCH_DELAY: isCI ? 5000 : 3000,     // aion2tool 검색 결과 대기 (ms) - CI에서 더 길게
+  ATOOL_TAB_WAIT_TIMEOUT: 20000               // aion2tool 탭 요소 대기 타임아웃 (ms)
 };
 
 // Supabase 초기화
@@ -163,11 +164,49 @@ async function scrapeAtoolScore(page, characterName) {
       waitUntil: isCI ? 'domcontentloaded' : 'load',  // CI에서는 domcontentloaded로 더 빠르게
       timeout: TIMING.PAGE_LOAD_TIMEOUT
     });
+    console.log('   ✓ 페이지 기본 로드 완료');
+
+    // 기본 대기 시간
     await page.waitForTimeout(TIMING.ATOOL_PAGE_LOAD_DELAY);
-    console.log('   ✓ 페이지 로드 완료');
 
     // 2. 캐릭터 탭 활성화 (라디오 버튼)
     console.log('   → 캐릭터 탭 활성화 중...');
+
+    // 명시적으로 탭 요소가 나타날 때까지 대기
+    let tabFound = false;
+    try {
+      await page.waitForSelector('#tab-character', {
+        timeout: TIMING.ATOOL_TAB_WAIT_TIMEOUT,
+        state: 'visible'
+      });
+      tabFound = true;
+      console.log('   ✓ 캐릭터 탭 발견');
+    } catch (waitError) {
+      console.log(`   ⚠️  캐릭터 탭 대기 타임아웃 (${TIMING.ATOOL_TAB_WAIT_TIMEOUT / 1000}초)`);
+
+      // 디버깅: HTML 구조 확인
+      console.log('   🔍 페이지 구조 확인 중...');
+      const debugInfo = await page.evaluate(() => {
+        const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+        const radioInfo = radios.map(r => ({ id: r.id, name: r.name, value: r.value }));
+
+        const tabElements = Array.from(document.querySelectorAll('[id*="tab"]'));
+        const tabInfo = tabElements.map(t => ({ id: t.id, tag: t.tagName }));
+
+        return {
+          totalRadios: radioInfo.length,
+          radioButtons: radioInfo.slice(0, 5),  // 처음 5개만
+          tabElements: tabInfo.slice(0, 5),
+          hasTabCharacter: !!document.querySelector('#tab-character')
+        };
+      });
+
+      console.log('   📋 디버그 정보:', JSON.stringify(debugInfo, null, 2));
+      console.log('   ❌ 캐릭터 탭을 찾을 수 없습니다');
+      return null;
+    }
+
+    // 탭 활성화 시도
     const tabActivated = await page.evaluate(() => {
       const tabRadio = document.querySelector('#tab-character');
       if (tabRadio) {
@@ -179,9 +218,10 @@ async function scrapeAtoolScore(page, characterName) {
     });
 
     if (!tabActivated) {
-      console.log('   ❌ 캐릭터 탭을 찾을 수 없습니다');
+      console.log('   ❌ 캐릭터 탭 활성화 실패');
       return null;
     }
+
     console.log('   ✓ 캐릭터 탭 활성화 완료');
     await page.waitForTimeout(500);
 
