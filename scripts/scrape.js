@@ -159,15 +159,16 @@ async function scrapeAtoolScore(page, characterName) {
     console.log('   → aion2tool.com 페이지 로딩 중...');
     console.log(`   ⏱️  타임아웃: ${TIMING.PAGE_LOAD_TIMEOUT / 1000}초 (CI 환경: ${isCI})`);
 
-    // CI 환경에서는 더 관대한 대기 전략 사용
+    // 더 완전한 페이지 로딩 대기 (networkidle)
     await page.goto('https://aion2tool.com', {
-      waitUntil: isCI ? 'domcontentloaded' : 'load',  // CI에서는 domcontentloaded로 더 빠르게
+      waitUntil: 'networkidle',  // 네트워크가 완전히 안정될 때까지 대기
       timeout: TIMING.PAGE_LOAD_TIMEOUT
     });
-    console.log('   ✓ 페이지 기본 로드 완료');
+    console.log('   ✓ 페이지 네트워크 로드 완료');
 
-    // 기본 대기 시간
+    // 추가 대기 시간 (JavaScript 실행 보장)
     await page.waitForTimeout(TIMING.ATOOL_PAGE_LOAD_DELAY);
+    console.log('   ✓ JavaScript 실행 대기 완료');
 
     // 2. 캐릭터 탭 활성화 (라디오 버튼)
     console.log('   → 캐릭터 탭 활성화 중...');
@@ -193,15 +194,36 @@ async function scrapeAtoolScore(page, characterName) {
         const tabElements = Array.from(document.querySelectorAll('[id*="tab"]'));
         const tabInfo = tabElements.map(t => ({ id: t.id, tag: t.tagName }));
 
+        // 페이지 전체 정보
+        const allInputs = document.querySelectorAll('input');
+        const allButtons = document.querySelectorAll('button');
+        const bodyText = document.body?.textContent?.substring(0, 200) || '';
+
         return {
+          url: window.location.href,
+          title: document.title,
+          bodyPreview: bodyText.trim(),
+          totalInputs: allInputs.length,
+          totalButtons: allButtons.length,
           totalRadios: radioInfo.length,
-          radioButtons: radioInfo.slice(0, 5),  // 처음 5개만
+          radioButtons: radioInfo.slice(0, 5),
           tabElements: tabInfo.slice(0, 5),
-          hasTabCharacter: !!document.querySelector('#tab-character')
+          hasTabCharacter: !!document.querySelector('#tab-character'),
+          hasBody: !!document.body,
+          bodyChildrenCount: document.body?.children?.length || 0
         };
       });
 
       console.log('   📋 디버그 정보:', JSON.stringify(debugInfo, null, 2));
+
+      // 스크린샷 저장 (디버깅용)
+      try {
+        await page.screenshot({ path: 'debug-aion2tool.png', fullPage: true });
+        console.log('   📸 스크린샷 저장: debug-aion2tool.png');
+      } catch (screenshotError) {
+        console.log('   ⚠️  스크린샷 저장 실패:', screenshotError.message);
+      }
+
       console.log('   ❌ 캐릭터 탭을 찾을 수 없습니다');
       return null;
     }
