@@ -243,6 +243,14 @@ async function scrapeAtoolScore(page, characterName) {
     // 추가 대기 (JavaScript 실행 완료)
     await page.waitForTimeout(2000);
 
+    // 디버깅용 스크린샷 저장 (성공 케이스도 확인)
+    try {
+      await page.screenshot({ path: `debug-success-${characterName}.png`, fullPage: false });
+      console.log(`   📸 페이지 로드 스크린샷: debug-success-${characterName}.png`);
+    } catch (err) {
+      console.log(`   ⚠️  스크린샷 저장 실패`);
+    }
+
     // DPS 점수 추출 (#dps-score-value)
     console.log('   → DPS 점수 추출 중...');
 
