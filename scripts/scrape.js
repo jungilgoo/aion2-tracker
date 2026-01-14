@@ -18,8 +18,9 @@ const TIMING = {
   PAGE_LOAD_TIMEOUT: isCI ? 60000 : 30000,     // 페이지 로딩 타임아웃 (ms) - CI에서 2배
   DETAIL_PAGE_DELAY: 3000,      // 상세 페이지 로딩 대기 (ms)
   ATOOL_PAGE_LOAD_DELAY: isCI ? 8000 : 3000,  // aion2tool 페이지 로딩 후 추가 대기 (ms) - CI에서 더 길게
-  ATOOL_SEARCH_DELAY: isCI ? 5000 : 3000,     // aion2tool 검색 결과 대기 (ms) - CI에서 더 길게
-  ATOOL_TAB_WAIT_TIMEOUT: 20000               // aion2tool 탭 요소 대기 타임아웃 (ms)
+  ATOOL_SEARCH_DELAY: isCI ? 10000 : 5000,    // aion2tool 검색 결과 대기 (ms) - CI에서 10초
+  ATOOL_TAB_WAIT_TIMEOUT: 20000,              // aion2tool 탭 요소 대기 타임아웃 (ms)
+  ATOOL_CLOUDFLARE_WAIT: isCI ? 45000 : 30000 // Cloudflare 챌린지 대기 (ms) - CI에서 45초
 };
 
 // Supabase 초기화
@@ -191,8 +192,8 @@ async function scrapeAtoolScore(page, characterName) {
         });
 
         if (isChallenged) {
-          console.log('   ⚠️  Cloudflare 챌린지 감지됨, 30초 대기 중...');
-          await page.waitForTimeout(30000);  // 30초 추가 대기
+          console.log(`   ⚠️  Cloudflare 챌린지 감지됨, ${TIMING.ATOOL_CLOUDFLARE_WAIT / 1000}초 대기 중...`);
+          await page.waitForTimeout(TIMING.ATOOL_CLOUDFLARE_WAIT);
           console.log('   ✓ Cloudflare 챌린지 대기 완료');
         }
 
@@ -339,19 +340,45 @@ async function scrapeAtoolScore(page, characterName) {
       console.log('   ✓ Enter 키로 검색');
     }
 
-    // 6. 검색 결과 대기
+    // 6. 검색 결과 대기 (결과 요소가 나타날 때까지)
     console.log('   → 검색 결과 로딩 대기 중...');
-    await page.waitForTimeout(TIMING.ATOOL_SEARCH_DELAY);
 
-    // 7. 캐릭터 정보 확인 (닉네임으로 검증)
-    const characterFound = await page.evaluate((name) => {
-      const nicknameElement = document.querySelector('#result-nickname');
-      if (nicknameElement) {
-        const foundName = nicknameElement.textContent.trim();
-        return foundName === name;
-      }
-      return false;
-    }, characterName);
+    let characterFound = false;
+    try {
+      // 결과 영역이 나타날 때까지 대기 (최대 15초)
+      await page.waitForSelector('#result-nickname, .error-message, .no-result', {
+        timeout: 15000,
+        state: 'attached'
+      });
+      console.log('   ✓ 검색 결과 영역 로드됨');
+
+      // 추가 대기 (렌더링 완료)
+      await page.waitForTimeout(TIMING.ATOOL_SEARCH_DELAY);
+
+      // 7. 캐릭터 정보 확인 (닉네임으로 검증)
+      characterFound = await page.evaluate((name) => {
+        const nicknameElement = document.querySelector('#result-nickname');
+        if (nicknameElement) {
+          const foundName = nicknameElement.textContent.trim();
+          return foundName === name;
+        }
+        return false;
+      }, characterName);
+
+    } catch (waitError) {
+      console.log('   ⚠️  검색 결과 대기 타임아웃 (15초)');
+      console.log('   → 페이지 상태 확인 중...');
+
+      // 디버깅: 현재 페이지 상태 확인
+      const debugInfo = await page.evaluate(() => {
+        const nickname = document.querySelector('#result-nickname')?.textContent || 'not found';
+        const allIds = Array.from(document.querySelectorAll('[id]')).map(el => el.id).slice(0, 10);
+        return { nickname, allIds };
+      });
+      console.log('   📋 결과 영역 상태:', JSON.stringify(debugInfo));
+
+      characterFound = false;
+    }
 
     if (!characterFound) {
       console.log(`   ⚠️  캐릭터 "${characterName}"를 찾을 수 없습니다`);
