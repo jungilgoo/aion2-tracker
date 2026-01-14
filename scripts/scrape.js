@@ -173,9 +173,20 @@ async function scrapeAtoolScore(page, characterName) {
     console.log(`   ⏳ ${waitTime / 1000}초 대기 중...`);
     await page.waitForTimeout(waitTime);
 
-    // 리다이렉트 체크 (메인 페이지로 돌아갔는지 확인)
+    // URL 확인 및 스크린샷
     const currentUrl = page.url();
-    if (currentUrl === 'https://aion2tool.com/' || !currentUrl.includes('/char/')) {
+    console.log(`   ℹ️  현재 URL: ${currentUrl}`);
+
+    // 디버깅용 스크린샷 저장
+    try {
+      await page.screenshot({ path: `debug-atool-${characterName}.png`, fullPage: false });
+      console.log(`   📸 스크린샷 저장: debug-atool-${characterName}.png`);
+    } catch (e) {
+      console.log(`   ⚠️  스크린샷 저장 실패: ${e.message}`);
+    }
+
+    // 리다이렉트 체크 (메인 페이지로 돌아갔는지 확인)
+    if (currentUrl === 'https://aion2tool.com/' || currentUrl === 'https://aion2tool.com') {
       console.log(`   ⚠️  캐릭터를 찾을 수 없습니다 (메인 페이지로 리다이렉트됨)`);
       console.log(`   ℹ️  "${characterName}" 캐릭터가 aion2tool.com에 등록되지 않았을 수 있습니다`);
       return null;
@@ -256,8 +267,16 @@ async function scrapeAtoolScore(page, characterName) {
         console.log(`      - #dps-score-value 존재: ${debugInfo.hasScoreElement}`);
         console.log(`      - 텍스트: "${debugInfo.scoreElementText}"`);
         console.log(`      - HTML: ${debugInfo.scoreElementHTML}`);
-        console.log(`      - Body 일부: ${debugInfo.bodyPreview.substring(0, 150)}`);
+        console.log(`      - Body 일부: ${debugInfo.bodyPreview.substring(0, 200)}`);
         console.log(`      - DPS 관련 요소들:`, JSON.stringify(debugInfo.allIdsWithDps));
+
+        // 스크린샷 저장
+        try {
+          await page.screenshot({ path: `debug-timeout-${characterName}.png`, fullPage: true });
+          console.log(`   📸 타임아웃 스크린샷 저장: debug-timeout-${characterName}.png`);
+        } catch (e) {
+          console.log(`   ⚠️  스크린샷 저장 실패`);
+        }
       }
 
       await page.waitForTimeout(pollInterval);
