@@ -173,6 +173,14 @@ async function scrapeAtoolScore(page, characterName) {
     console.log(`   ⏳ ${waitTime / 1000}초 대기 중...`);
     await page.waitForTimeout(waitTime);
 
+    // 리다이렉트 체크 (메인 페이지로 돌아갔는지 확인)
+    const currentUrl = page.url();
+    if (currentUrl === 'https://aion2tool.com/' || !currentUrl.includes('/char/')) {
+      console.log(`   ⚠️  캐릭터를 찾을 수 없습니다 (메인 페이지로 리다이렉트됨)`);
+      console.log(`   ℹ️  "${characterName}" 캐릭터가 aion2tool.com에 등록되지 않았을 수 있습니다`);
+      return null;
+    }
+
     // DPS 점수 추출 (#dps-score-value)
     console.log('   → DPS 점수 추출 중...');
 
@@ -186,7 +194,13 @@ async function scrapeAtoolScore(page, characterName) {
         const scoreElement = document.querySelector('#dps-score-value');
         if (scoreElement) {
           const scoreText = scoreElement.textContent.trim();
-          if (scoreText && scoreText !== '') {
+
+          // "-" 또는 빈 문자열은 데이터 없음
+          if (scoreText === '-' || scoreText === '') {
+            return { found: false, noData: true, text: scoreText };
+          }
+
+          if (scoreText) {
             const score = parseInt(scoreText.replace(/,/g, ''));
             return { found: true, score: isNaN(score) ? null : score, text: scoreText };
           }
@@ -204,6 +218,10 @@ async function scrapeAtoolScore(page, characterName) {
       if (result.found && result.score !== null) {
         dpsScore = result.score;
         console.log(`   ✅ DPS Score: ${dpsScore.toLocaleString()} (${attempt}회 시도)`);
+        break;
+      } else if (result.noData) {
+        console.log(`   ⚠️  DPS 데이터 없음 (값: "${result.text}")`);
+        console.log(`   ℹ️  캐릭터 정보는 있지만 DPS 점수가 기록되지 않았습니다`);
         break;
       } else if (result.error) {
         console.log(`   ⚠️  에러: ${result.error}`);
