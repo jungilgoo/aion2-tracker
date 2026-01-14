@@ -352,6 +352,27 @@ async function main() {
   const officialPage = await context.newPage();  // 공식 사이트용
   const atoolPage = await context.newPage();     // aion2tool.com용 (URL 직접 접근)
 
+  // aion2tool.com 봇 감지 우회 (필수!)
+  await atoolPage.addInitScript(() => {
+    // navigator.webdriver 속성 제거
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => undefined
+    });
+
+    // Chrome 객체 추가
+    window.chrome = {
+      runtime: {}
+    };
+
+    // Permissions API 오버라이드
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (parameters) => (
+      parameters.name === 'notifications' ?
+        Promise.resolve({ state: Notification.permission }) :
+        originalQuery(parameters)
+    );
+  });
+
   const results = [];
 
   // 각 캐릭터 순회하며 데이터 수집
