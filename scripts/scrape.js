@@ -17,7 +17,7 @@ const TIMING = {
   REQUEST_INTERVAL: 2000,       // 서버 부하 방지를 위한 요청 간격 (ms)
   PAGE_LOAD_TIMEOUT: isCI ? 60000 : 30000,     // 페이지 로딩 타임아웃 (ms) - CI에서 2배
   DETAIL_PAGE_DELAY: 3000,      // 상세 페이지 로딩 대기 (ms)
-  ATOOL_PAGE_LOAD_DELAY: isCI ? 5000 : 2000,  // aion2tool 페이지 로딩 대기 (ms) - CI에서 더 길게
+  ATOOL_PAGE_LOAD_DELAY: isCI ? 8000 : 3000,  // aion2tool 페이지 로딩 후 추가 대기 (ms) - CI에서 더 길게
   ATOOL_SEARCH_DELAY: isCI ? 5000 : 3000,     // aion2tool 검색 결과 대기 (ms) - CI에서 더 길게
   ATOOL_TAB_WAIT_TIMEOUT: 20000               // aion2tool 탭 요소 대기 타임아웃 (ms)
 };
@@ -155,20 +155,62 @@ async function scrapeAtoolScore(page, characterName) {
   console.log(`\n🎯 Fetching DPS score from aion2tool.com: ${characterName}`);
 
   try {
-    // 1. aion2tool.com 메인 페이지로 이동
+    // 1. aion2tool.com 메인 페이지로 이동 (재시도 로직 포함)
     console.log('   → aion2tool.com 페이지 로딩 중...');
     console.log(`   ⏱️  타임아웃: ${TIMING.PAGE_LOAD_TIMEOUT / 1000}초 (CI 환경: ${isCI})`);
 
-    // 더 완전한 페이지 로딩 대기 (networkidle)
-    await page.goto('https://aion2tool.com', {
-      waitUntil: 'networkidle',  // 네트워크가 완전히 안정될 때까지 대기
-      timeout: TIMING.PAGE_LOAD_TIMEOUT
-    });
-    console.log('   ✓ 페이지 네트워크 로드 완료');
+    let loadSuccess = false;
+    let lastError = null;
 
-    // 추가 대기 시간 (JavaScript 실행 보장)
-    await page.waitForTimeout(TIMING.ATOOL_PAGE_LOAD_DELAY);
-    console.log('   ✓ JavaScript 실행 대기 완료');
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`   🔄 시도 ${attempt}/3...`);
+
+        // domcontentloaded 사용 (networkidle보다 빠르고 안정적)
+        await page.goto('https://aion2tool.com', {
+          waitUntil: 'domcontentloaded',  // DOM 로딩 완료만 대기
+          timeout: TIMING.PAGE_LOAD_TIMEOUT
+        });
+
+        console.log('   ✓ 페이지 DOM 로드 완료');
+
+        // 추가 대기 시간 (JavaScript 실행 보장)
+        await page.waitForTimeout(TIMING.ATOOL_PAGE_LOAD_DELAY);
+        console.log('   ✓ JavaScript 실행 대기 완료');
+
+        // Cloudflare 챌린지 체크
+        const isChallenged = await page.evaluate(() => {
+          const title = document.title.toLowerCase();
+          const bodyText = document.body?.textContent?.toLowerCase() || '';
+          return title.includes('just a moment') ||
+                 title.includes('checking your browser') ||
+                 bodyText.includes('cloudflare') ||
+                 bodyText.includes('ddos protection');
+        });
+
+        if (isChallenged) {
+          console.log('   ⚠️  Cloudflare 챌린지 감지됨, 추가 대기 중...');
+          await page.waitForTimeout(10000);  // 10초 추가 대기
+        }
+
+        loadSuccess = true;
+        break;
+
+      } catch (error) {
+        lastError = error;
+        console.log(`   ⚠️  시도 ${attempt} 실패: ${error.message}`);
+
+        if (attempt < 3) {
+          console.log(`   ⏳ 5초 후 재시도...`);
+          await page.waitForTimeout(5000);
+        }
+      }
+    }
+
+    if (!loadSuccess) {
+      console.log('   ❌ 페이지 로딩 실패 (3회 시도 후)');
+      throw lastError;
+    }
 
     // 2. 캐릭터 탭 활성화 (라디오 버튼)
     console.log('   → 캐릭터 탭 활성화 중...');
@@ -411,9 +453,60 @@ async function main() {
     return;
   }
 
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
+  // 봇 감지 우회를 위한 브라우저 설정
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--disable-blink-features=AutomationControlled',  // 자동화 감지 비활성화
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-web-security'
+    ]
+  });
+
+  // 실제 브라우저처럼 보이도록 컨텍스트 설정
+  const context = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    viewport: { width: 1920, height: 1080 },
+    locale: 'ko-KR',
+    timezoneId: 'Asia/Seoul',
+    extraHTTPHeaders: {
+      'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-User': '?1',
+      'Cache-Control': 'max-age=0'
+    }
+  });
+
   const page = await context.newPage();
+
+  // JavaScript로 자동화 감지 속성 제거
+  await page.addInitScript(() => {
+    // navigator.webdriver 속성 제거
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => undefined
+    });
+
+    // Chrome 객체 추가 (봇 감지 우회)
+    window.chrome = {
+      runtime: {}
+    };
+
+    // Permissions API 오버라이드
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (parameters) => (
+      parameters.name === 'notifications' ?
+        Promise.resolve({ state: Notification.permission }) :
+        originalQuery(parameters)
+    );
+  });
 
   const results = [];
 
