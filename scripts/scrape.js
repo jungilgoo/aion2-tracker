@@ -184,13 +184,16 @@ async function scrapeAtoolScore(page, characterName) {
           const bodyText = document.body?.textContent?.toLowerCase() || '';
           return title.includes('just a moment') ||
                  title.includes('checking your browser') ||
+                 title.includes('잠시만 기다리십시오') ||
                  bodyText.includes('cloudflare') ||
-                 bodyText.includes('ddos protection');
+                 bodyText.includes('ddos protection') ||
+                 bodyText.includes('enable javascript and cookies');
         });
 
         if (isChallenged) {
-          console.log('   ⚠️  Cloudflare 챌린지 감지됨, 추가 대기 중...');
-          await page.waitForTimeout(10000);  // 10초 추가 대기
+          console.log('   ⚠️  Cloudflare 챌린지 감지됨, 30초 대기 중...');
+          await page.waitForTimeout(30000);  // 30초 추가 대기
+          console.log('   ✓ Cloudflare 챌린지 대기 완료');
         }
 
         loadSuccess = true;
@@ -215,15 +218,16 @@ async function scrapeAtoolScore(page, characterName) {
     // 2. 캐릭터 탭 활성화 (라디오 버튼)
     console.log('   → 캐릭터 탭 활성화 중...');
 
-    // 명시적으로 탭 요소가 나타날 때까지 대기
+    // 탭 요소 존재 여부 직접 확인 (visibility 체크 없이)
     let tabFound = false;
     try {
+      // 'attached' 상태만 확인 (visible이 아니어도 OK)
       await page.waitForSelector('#tab-character', {
         timeout: TIMING.ATOOL_TAB_WAIT_TIMEOUT,
-        state: 'visible'
+        state: 'attached'  // visible 대신 attached 사용
       });
       tabFound = true;
-      console.log('   ✓ 캐릭터 탭 발견');
+      console.log('   ✓ 캐릭터 탭 발견 (DOM에 존재)');
     } catch (waitError) {
       console.log(`   ⚠️  캐릭터 탭 대기 타임아웃 (${TIMING.ATOOL_TAB_WAIT_TIMEOUT / 1000}초)`);
 
