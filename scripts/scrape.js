@@ -257,11 +257,17 @@ async function scrapeAtoolScore(page, characterName) {
         if (scoreElement) {
           const scoreText = scoreElement.textContent.trim();
 
-          // "-" 또는 빈 문자열은 데이터 없음
-          if (scoreText === '-' || scoreText === '') {
-            return { found: false, noData: true, text: scoreText };
+          // 빈 문자열은 에러
+          if (scoreText === '') {
+            return { found: false, isEmpty: true };
           }
 
+          // "-"는 로딩 중 또는 데이터 없음 (계속 polling)
+          if (scoreText === '-') {
+            return { found: false, loading: true, text: scoreText };
+          }
+
+          // 실제 숫자 값
           if (scoreText) {
             const score = parseInt(scoreText.replace(/,/g, ''));
             return { found: true, score: isNaN(score) ? null : score, text: scoreText };
@@ -277,20 +283,36 @@ async function scrapeAtoolScore(page, characterName) {
         return { found: false, score: null };
       });
 
+      // 실제 DPS 점수를 찾음
       if (result.found && result.score !== null) {
         dpsScore = result.score;
         console.log(`   ✅ DPS Score: ${dpsScore.toLocaleString()} (${attempt}회 시도)`);
         break;
-      } else if (result.noData) {
-        console.log(`   ⚠️  DPS 데이터 없음 (값: "${result.text}")`);
-        console.log(`   ℹ️  캐릭터 정보는 있지만 DPS 점수가 기록되지 않았습니다`);
-        break;
-      } else if (result.error) {
+      }
+
+      // 에러 메시지 발견
+      if (result.error) {
         console.log(`   ⚠️  에러: ${result.error}`);
         break;
       }
 
+      // "-" 값 (로딩 중) - 계속 polling
+      if (result.loading) {
+        // 첫 시도에서만 로그 출력
+        if (attempt === 1) {
+          console.log(`   ⏳ DPS 점수 로딩 중... (값: "-", API 응답 대기)`);
+        }
+        // 계속 대기
+      }
+
+      // 마지막 시도까지 "-"만 나오면 데이터 없음으로 판단
       if (attempt === maxAttempts) {
+        if (result.loading) {
+          console.log(`   ⚠️  DPS 데이터 없음 (값: "-")`);
+          console.log(`   ℹ️  캐릭터 정보는 있지만 DPS 점수가 기록되지 않았습니다`);
+          break;
+        }
+
         console.log('   ⚠️  DPS 점수를 찾을 수 없습니다 (타임아웃)');
 
         // 디버깅: 페이지 상태 확인
