@@ -331,7 +331,13 @@ async function scrapeAtoolScore(page, characterName) {
       return null;
     }
 
-    await searchInput.fill(characterName);
+    // 이전 검색어 완전히 지우기
+    await searchInput.click({ clickCount: 3 }); // 전체 선택
+    await searchInput.press('Backspace'); // 삭제
+    await page.waitForTimeout(300);
+
+    // 새 검색어 입력
+    await searchInput.type(characterName, { delay: 50 }); // 타이핑 시뮬레이션
     console.log(`   ✓ 검색어 입력 완료: "${characterName}"`);
 
     // 5. 검색 버튼 클릭
@@ -361,14 +367,25 @@ async function scrapeAtoolScore(page, characterName) {
       await page.waitForTimeout(TIMING.ATOOL_SEARCH_DELAY);
 
       // 7. 캐릭터 정보 확인 (닉네임으로 검증)
-      characterFound = await page.evaluate((name) => {
+      const resultCheck = await page.evaluate((name) => {
         const nicknameElement = document.querySelector('#result-nickname');
         if (nicknameElement) {
           const foundName = nicknameElement.textContent.trim();
-          return foundName === name;
+          return {
+            found: foundName === name,
+            actualName: foundName,
+            expectedName: name
+          };
         }
-        return false;
+        return { found: false, actualName: 'not found', expectedName: name };
       }, characterName);
+
+      characterFound = resultCheck.found;
+
+      // 디버깅: 검색 결과 확인
+      if (!characterFound) {
+        console.log(`   ⚠️  닉네임 불일치: 기대="${resultCheck.expectedName}", 실제="${resultCheck.actualName}"`);
+      }
 
     } catch (waitError) {
       console.log('   ⚠️  검색 결과 대기 타임아웃 (15초)');
@@ -632,7 +649,7 @@ async function main() {
     }
 
     // 요청 간격 (서버 부하 방지)
-    await page.waitForTimeout(TIMING.REQUEST_INTERVAL);
+    await officialPage.waitForTimeout(TIMING.REQUEST_INTERVAL);
   }
 
   await browser.close();
