@@ -168,8 +168,10 @@ async function scrapeAtoolScore(page, characterName) {
 
     console.log('   ✓ 페이지 로드 완료');
 
-    // JavaScript 실행 대기
-    await page.waitForTimeout(3000);
+    // JavaScript 실행 대기 (CI 환경에서 더 길게)
+    const waitTime = isCI ? 8000 : 3000;
+    console.log(`   ⏳ ${waitTime / 1000}초 대기 중...`);
+    await page.waitForTimeout(waitTime);
 
     // DPS 점수 추출 (#dps-score-value)
     console.log('   → DPS 점수 추출 중...');
@@ -210,6 +212,34 @@ async function scrapeAtoolScore(page, characterName) {
 
       if (attempt === maxAttempts) {
         console.log('   ⚠️  DPS 점수를 찾을 수 없습니다 (타임아웃)');
+
+        // 디버깅: 페이지 상태 확인
+        console.log('   🔍 페이지 상태 확인 중...');
+        const debugInfo = await page.evaluate(() => {
+          const scoreEl = document.querySelector('#dps-score-value');
+
+          return {
+            url: window.location.href,
+            title: document.title,
+            hasScoreElement: !!scoreEl,
+            scoreElementText: scoreEl ? scoreEl.textContent : 'not found',
+            scoreElementHTML: scoreEl ? scoreEl.innerHTML : 'not found',
+            bodyPreview: document.body?.textContent?.substring(0, 300) || '',
+            allIdsWithDps: Array.from(document.querySelectorAll('[id*="dps"]')).map(el => ({
+              id: el.id,
+              text: el.textContent?.substring(0, 50)
+            }))
+          };
+        });
+
+        console.log('   📋 디버그 정보:');
+        console.log(`      - URL: ${debugInfo.url}`);
+        console.log(`      - Title: ${debugInfo.title}`);
+        console.log(`      - #dps-score-value 존재: ${debugInfo.hasScoreElement}`);
+        console.log(`      - 텍스트: "${debugInfo.scoreElementText}"`);
+        console.log(`      - HTML: ${debugInfo.scoreElementHTML}`);
+        console.log(`      - Body 일부: ${debugInfo.bodyPreview.substring(0, 150)}`);
+        console.log(`      - DPS 관련 요소들:`, JSON.stringify(debugInfo.allIdsWithDps));
       }
 
       await page.waitForTimeout(pollInterval);
