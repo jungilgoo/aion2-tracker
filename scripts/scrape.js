@@ -286,29 +286,26 @@ async function initAtoolPage(page) {
     console.log('   ✓ 캐릭터 탭 활성화 완료');
     await page.waitForTimeout(500);
 
-    // 3. 서버 선택 (루미엘)
+    // 3. 서버 선택 (루미엘 - value: 2004)
     console.log('   → 서버 선택 중 (루미엘)...');
     const serverSelected = await page.evaluate(() => {
-      const serverSelect = document.querySelector('select');
+      const serverSelect = document.querySelector('#server-select');
       if (serverSelect) {
-        const lumielOption = Array.from(serverSelect.options).find(opt =>
-          opt.textContent.includes('루미엘')
-        );
-        if (lumielOption) {
-          serverSelect.value = lumielOption.value;
-          serverSelect.dispatchEvent(new Event('change', { bubbles: true }));
-          return lumielOption.textContent;
-        }
+        serverSelect.value = '2004';  // 루미엘 서버 코드
+        serverSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        const selectedOption = serverSelect.options[serverSelect.selectedIndex];
+        return selectedOption ? selectedOption.textContent : '루미엘';
       }
       return null;
     });
 
     if (serverSelected) {
       console.log(`   ✓ 서버 선택: ${serverSelected}`);
-      await page.waitForTimeout(500);
     } else {
-      console.log('   ⚠️  서버 선택 실패 (기본값 사용 가능)');
+      console.log('   ⚠️  서버 선택 실패');
     }
+
+    await page.waitForTimeout(500);
 
   await page.waitForTimeout(500);
   console.log('✅ aion2tool.com 초기화 완료\n');
@@ -323,9 +320,9 @@ async function scrapeAtoolScore(page, characterName) {
   console.log(`\n🎯 Fetching DPS score: ${characterName}`);
 
   try {
-    // 검색 입력
+    // 검색 입력 (#character-keyword)
     console.log('   → 검색어 입력 중...');
-    const searchInput = await page.$('input[type="text"]');
+    const searchInput = await page.$('#character-keyword');
     if (!searchInput) {
       console.log('   ❌ 검색창을 찾을 수 없습니다');
       return null;
@@ -333,58 +330,63 @@ async function scrapeAtoolScore(page, characterName) {
 
     // 이전 검색어 완전히 지우기
     await searchInput.click({ clickCount: 3 }); // 전체 선택
-    await searchInput.press('Backspace'); // 삭제
-    await page.waitForTimeout(300);
+    await page.keyboard.press('Backspace'); // 삭제
+    await page.waitForTimeout(200);
 
     // 새 검색어 입력
     await searchInput.type(characterName, { delay: 50 }); // 타이핑 시뮬레이션
     console.log(`   ✓ 검색어 입력 완료: "${characterName}"`);
 
-    // 5. 검색 버튼 클릭
+    // 검색 버튼 클릭 (#search-button)
     console.log('   → 검색 실행 중...');
-    const searchButton = await page.$('button:has-text("검색")');
+    const searchButton = await page.$('#search-button');
     if (searchButton) {
       await searchButton.click();
       console.log('   ✓ 검색 버튼 클릭');
     } else {
-      await searchInput.press('Enter');
-      console.log('   ✓ Enter 키로 검색');
+      console.log('   ⚠️  검색 버튼을 찾을 수 없습니다');
+      return null;
     }
 
-    // 6. 검색 결과 대기 (결과 요소가 나타날 때까지)
+    // 6. 검색 결과 대기 (닉네임이 실제로 채워질 때까지)
     console.log('   → 검색 결과 로딩 대기 중...');
 
     let characterFound = false;
     try {
-      // 결과 영역이 나타날 때까지 대기 (최대 15초)
-      await page.waitForSelector('#result-nickname, .error-message, .no-result', {
-        timeout: 15000,
-        state: 'attached'
-      });
-      console.log('   ✓ 검색 결과 영역 로드됨');
+      // Polling 방식: 닉네임 텍스트가 기대값과 일치할 때까지 대기
+      const maxAttempts = 20; // 최대 20회 시도
+      const pollInterval = 500; // 0.5초마다 확인
 
-      // 추가 대기 (렌더링 완료)
-      await page.waitForTimeout(TIMING.ATOOL_SEARCH_DELAY);
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const resultCheck = await page.evaluate((name) => {
+          const nicknameElement = document.querySelector('#result-nickname');
+          if (nicknameElement) {
+            const foundName = nicknameElement.textContent.trim();
+            return {
+              found: foundName === name,
+              actualName: foundName,
+              expectedName: name,
+              isEmpty: foundName === ''
+            };
+          }
+          return { found: false, actualName: 'element not found', expectedName: name, isEmpty: false };
+        }, characterName);
 
-      // 7. 캐릭터 정보 확인 (닉네임으로 검증)
-      const resultCheck = await page.evaluate((name) => {
-        const nicknameElement = document.querySelector('#result-nickname');
-        if (nicknameElement) {
-          const foundName = nicknameElement.textContent.trim();
-          return {
-            found: foundName === name,
-            actualName: foundName,
-            expectedName: name
-          };
+        if (resultCheck.found) {
+          console.log(`   ✓ 검색 결과 확인 (${attempt}회 시도)`);
+          characterFound = true;
+          break;
+        } else if (!resultCheck.isEmpty && resultCheck.actualName !== 'element not found') {
+          // 닉네임이 있지만 다른 캐릭터 (이전 검색 결과)
+          console.log(`   ⚠️  이전 결과 감지: "${resultCheck.actualName}" (${attempt}회)`);
         }
-        return { found: false, actualName: 'not found', expectedName: name };
-      }, characterName);
 
-      characterFound = resultCheck.found;
+        // 마지막 시도에서도 실패하면 디버깅 정보 출력
+        if (attempt === maxAttempts) {
+          console.log(`   ⚠️  닉네임 불일치: 기대="${resultCheck.expectedName}", 실제="${resultCheck.actualName}"`);
+        }
 
-      // 디버깅: 검색 결과 확인
-      if (!characterFound) {
-        console.log(`   ⚠️  닉네임 불일치: 기대="${resultCheck.expectedName}", 실제="${resultCheck.actualName}"`);
+        await page.waitForTimeout(pollInterval);
       }
 
     } catch (waitError) {
