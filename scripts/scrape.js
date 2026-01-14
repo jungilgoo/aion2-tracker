@@ -337,12 +337,22 @@ async function scrapeAtoolScore(page, characterName) {
     await searchInput.type(characterName, { delay: 50 }); // 타이핑 시뮬레이션
     console.log(`   ✓ 검색어 입력 완료: "${characterName}"`);
 
-    // 검색 버튼 클릭 (#search-button)
+    // 검색 실행 (#search-button)
     console.log('   → 검색 실행 중...');
-    const searchButton = await page.$('#search-button');
-    if (searchButton) {
-      await searchButton.click();
-      console.log('   ✓ 검색 버튼 클릭');
+
+    // JavaScript로 직접 클릭 이벤트 트리거 (더 확실함)
+    const clicked = await page.evaluate(() => {
+      const button = document.querySelector('#search-button');
+      if (button) {
+        button.click();
+        return true;
+      }
+      return false;
+    });
+
+    if (clicked) {
+      console.log('   ✓ 검색 버튼 클릭 (JavaScript)');
+      await page.waitForTimeout(500); // 검색 시작 대기
     } else {
       console.log('   ⚠️  검색 버튼을 찾을 수 없습니다');
       return null;
@@ -384,23 +394,53 @@ async function scrapeAtoolScore(page, characterName) {
         // 마지막 시도에서도 실패하면 디버깅 정보 출력
         if (attempt === maxAttempts) {
           console.log(`   ⚠️  닉네임 불일치: 기대="${resultCheck.expectedName}", 실제="${resultCheck.actualName}"`);
+
+          // 상세 디버깅: 페이지 전체 상태 확인
+          console.log('   🔍 페이지 상태 확인 중...');
+          const debugInfo = await page.evaluate(() => {
+            // 결과 영역 확인
+            const resultArea = document.querySelector('.result-area, #result-area, [class*="result"]');
+            const resultHTML = resultArea ? resultArea.innerHTML.substring(0, 500) : 'result area not found';
+
+            // 에러 메시지 확인
+            const errorMsg = document.querySelector('.error-message, .no-result, .not-found');
+            const errorText = errorMsg ? errorMsg.textContent.trim() : 'no error';
+
+            // 로딩 상태 확인
+            const loadingElement = document.querySelector('.loading, [class*="loading"]');
+            const isLoading = loadingElement ? loadingElement.style.display !== 'none' : false;
+
+            // 닉네임 요소 상태
+            const nicknameEl = document.querySelector('#result-nickname');
+            const nicknameInfo = nicknameEl ? {
+              exists: true,
+              text: nicknameEl.textContent,
+              innerHTML: nicknameEl.innerHTML,
+              display: window.getComputedStyle(nicknameEl).display
+            } : { exists: false };
+
+            return {
+              resultHTML,
+              errorText,
+              isLoading,
+              nicknameInfo,
+              url: window.location.href
+            };
+          });
+
+          console.log('   📋 디버그 정보:');
+          console.log(`      - URL: ${debugInfo.url}`);
+          console.log(`      - 로딩 중: ${debugInfo.isLoading}`);
+          console.log(`      - 에러: ${debugInfo.errorText}`);
+          console.log(`      - 닉네임 요소: ${JSON.stringify(debugInfo.nicknameInfo)}`);
+          console.log(`      - 결과 HTML (일부): ${debugInfo.resultHTML.substring(0, 200)}`);
         }
 
         await page.waitForTimeout(pollInterval);
       }
 
     } catch (waitError) {
-      console.log('   ⚠️  검색 결과 대기 타임아웃 (15초)');
-      console.log('   → 페이지 상태 확인 중...');
-
-      // 디버깅: 현재 페이지 상태 확인
-      const debugInfo = await page.evaluate(() => {
-        const nickname = document.querySelector('#result-nickname')?.textContent || 'not found';
-        const allIds = Array.from(document.querySelectorAll('[id]')).map(el => el.id).slice(0, 10);
-        return { nickname, allIds };
-      });
-      console.log('   📋 결과 영역 상태:', JSON.stringify(debugInfo));
-
+      console.log('   ❌ 예외 발생:', waitError.message);
       characterFound = false;
     }
 
