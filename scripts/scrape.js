@@ -316,7 +316,7 @@ async function main() {
     return;
   }
 
-  // 봇 감지 우회를 위한 브라우저 설정
+  // 봇 감지 우회를 위한 브라우저 설정 (강화!)
   const browser = await chromium.launch({
     headless: true,
     args: [
@@ -324,7 +324,10 @@ async function main() {
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-web-security'
+      '--disable-web-security',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--disable-site-isolation-trials',
+      '--disable-features=BlockInsecurePrivateNetworkRequests'
     ]
   });
 
@@ -352,17 +355,32 @@ async function main() {
   const officialPage = await context.newPage();  // 공식 사이트용
   const atoolPage = await context.newPage();     // aion2tool.com용 (URL 직접 접근)
 
-  // aion2tool.com 봇 감지 우회 (필수!)
+  // aion2tool.com 봇 감지 우회 (강화!)
   await atoolPage.addInitScript(() => {
-    // navigator.webdriver 속성 제거
+    // navigator.webdriver 속성 완전 제거
     Object.defineProperty(navigator, 'webdriver', {
       get: () => undefined
     });
 
-    // Chrome 객체 추가
+    delete navigator.__proto__.webdriver;
+
+    // Chrome 객체 추가 (더 상세하게)
     window.chrome = {
-      runtime: {}
+      runtime: {},
+      loadTimes: function() {},
+      csi: function() {},
+      app: {}
     };
+
+    // plugins 배열 추가
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => [1, 2, 3, 4, 5]
+    });
+
+    // languages 설정
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['ko-KR', 'ko', 'en-US', 'en']
+    });
 
     // Permissions API 오버라이드
     const originalQuery = window.navigator.permissions.query;
@@ -371,6 +389,22 @@ async function main() {
         Promise.resolve({ state: Notification.permission }) :
         originalQuery(parameters)
     );
+
+    // 추가 속성들
+    Object.defineProperty(navigator, 'hardwareConcurrency', {
+      get: () => 8
+    });
+
+    Object.defineProperty(navigator, 'deviceMemory', {
+      get: () => 8
+    });
+
+    // iframe 감지 우회
+    Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', {
+      get: function() {
+        return window;
+      }
+    });
   });
 
   const results = [];
