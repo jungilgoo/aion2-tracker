@@ -168,6 +168,47 @@ async function scrapeAtoolScore(page, characterName) {
 
     console.log('   ✓ 페이지 로드 완료');
 
+    // Cloudflare 챌린지 체크 및 대기
+    console.log('   🔍 Cloudflare 체크 중...');
+    const hasCloudflare = await page.evaluate(() => {
+      const bodyText = document.body.textContent || '';
+      return bodyText.includes('Checking your browser') ||
+             bodyText.includes('사람인지 확인하는 중') ||
+             bodyText.includes('Just a moment');
+    });
+
+    if (hasCloudflare) {
+      console.log('   ⏳ Cloudflare 챌린지 감지 - 통과 대기 중... (최대 45초)');
+      try {
+        // Cloudflare 챌린지가 사라질 때까지 대기
+        await page.waitForFunction(() => {
+          const bodyText = document.body.textContent || '';
+          return !bodyText.includes('Checking your browser') &&
+                 !bodyText.includes('사람인지 확인하는 중') &&
+                 !bodyText.includes('Just a moment');
+        }, { timeout: 45000 });
+        console.log('   ✅ Cloudflare 챌린지 통과');
+
+        // 챌린지 통과 후 추가 대기 (페이지 리로드 완료)
+        await page.waitForTimeout(2000);
+      } catch (e) {
+        console.log('   ❌ Cloudflare 챌린지 타임아웃 (45초)');
+        console.log('   ℹ️  봇으로 감지되었을 가능성이 높습니다');
+
+        // 디버깅용 스크린샷
+        try {
+          await page.screenshot({ path: `debug-cloudflare-${characterName}.png`, fullPage: false });
+          console.log(`   📸 스크린샷 저장: debug-cloudflare-${characterName}.png`);
+        } catch (err) {
+          console.log(`   ⚠️  스크린샷 저장 실패`);
+        }
+
+        return null;
+      }
+    } else {
+      console.log('   ✅ Cloudflare 챌린지 없음');
+    }
+
     // SPA 라우팅 완료 대기: #dps-score-value 요소가 나타날 때까지
     console.log('   ⏳ SPA 라우팅 대기 중...');
 
