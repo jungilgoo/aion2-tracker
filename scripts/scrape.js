@@ -195,35 +195,53 @@ async function scrapeAtoolScore(page, characterName) {
     console.log('   ✅ API 응답 수신');
     const data = result.data;
 
+    // 응답 구조 확인 (디버깅)
+    // console.log(`   🔍 응답 구조: ${JSON.stringify(data).substring(0, 200)}`);
+
     // 응답에서 캐릭터 데이터 찾기
+    let character = null;
+
     if (data && data.data) {
-      // 정확한 닉네임 매칭
-      const character = data.data.find(char => char.nickname === characterName);
-
-      if (character) {
-        const combatScore = character.combat_score;
-        const combatScoreMax = character.combat_score_max;
-
-        if (combatScore !== null && combatScore !== undefined) {
-          console.log(`   ✅ Combat Score: ${combatScore.toLocaleString()}`);
-          if (combatScoreMax) {
-            console.log(`   ℹ️  Max Score: ${combatScoreMax.toLocaleString()}`);
-          }
-          return combatScore;
-        } else {
-          console.log(`   ⚠️  캐릭터 발견했지만 Combat Score 없음`);
-          return null;
-        }
-      } else {
-        console.log(`   ⚠️  "${characterName}" 캐릭터를 찾을 수 없습니다`);
-        console.log(`   ℹ️  검색 결과: ${data.data.length}개`);
-        if (data.data.length > 0) {
+      // data.data가 배열인 경우
+      if (Array.isArray(data.data)) {
+        character = data.data.find(char => char.nickname === characterName);
+        if (!character && data.data.length > 0) {
+          console.log(`   ⚠️  "${characterName}" 정확한 매칭 없음`);
+          console.log(`   ℹ️  검색 결과: ${data.data.length}개`);
           console.log(`   ℹ️  첫 번째 결과: ${data.data[0].nickname}`);
         }
+      }
+      // data.data가 단일 객체인 경우
+      else if (data.data.nickname === characterName) {
+        character = data.data;
+      }
+    }
+    // data 자체가 캐릭터 정보인 경우
+    else if (data && data.nickname === characterName) {
+      character = data;
+    }
+    // data가 배열인 경우
+    else if (Array.isArray(data)) {
+      character = data.find(char => char.nickname === characterName);
+    }
+
+    if (character) {
+      const combatScore = character.combat_score;
+      const combatScoreMax = character.combat_score_max;
+
+      if (combatScore !== null && combatScore !== undefined) {
+        console.log(`   ✅ Combat Score: ${combatScore.toLocaleString()}`);
+        if (combatScoreMax) {
+          console.log(`   ℹ️  Max Score: ${combatScoreMax.toLocaleString()}`);
+        }
+        return combatScore;
+      } else {
+        console.log(`   ⚠️  캐릭터 발견했지만 Combat Score 없음`);
         return null;
       }
     } else {
-      console.log(`   ⚠️  API 응답에 데이터 없음`);
+      console.log(`   ⚠️  "${characterName}" 캐릭터를 찾을 수 없습니다`);
+      console.log(`   ℹ️  응답 타입: ${typeof data}, keys: ${data ? Object.keys(data).join(', ') : 'null'}`);
       return null;
     }
 
