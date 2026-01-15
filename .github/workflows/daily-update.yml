@@ -25,11 +25,11 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Run scraper
+      - name: Run scraper with xvfb (headful mode)
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: npm run scrape
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" npm run scrape
 
       # 디버그용 스크린샷 업로드 (실패 시에도 실행)
       - name: Upload debug screenshot

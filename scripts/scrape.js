@@ -424,9 +424,9 @@ async function main() {
     return;
   }
 
-  // 봇 감지 우회를 위한 브라우저 설정 (강화!)
+  // 봇 감지 우회를 위한 브라우저 설정 (Headful 모드 + xvfb)
   const browser = await chromium.launch({
-    headless: true,
+    headless: false,  // Headful 모드 (xvfb 가상 디스플레이 사용)
     args: [
       '--disable-blink-features=AutomationControlled',  // 자동화 감지 비활성화
       '--no-sandbox',
@@ -435,7 +435,8 @@ async function main() {
       '--disable-web-security',
       '--disable-features=IsolateOrigins,site-per-process',
       '--disable-site-isolation-trials',
-      '--disable-features=BlockInsecurePrivateNetworkRequests'
+      '--disable-features=BlockInsecurePrivateNetworkRequests',
+      '--start-maximized'  // 창 최대화
     ]
   });
 
