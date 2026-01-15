@@ -154,42 +154,46 @@ async function scrapeCharacter(page, characterName) {
 }
 
 /**
- * aion2tool.com API에서 DPS 점수 추출 (직접 API 호출 방식)
+ * aion2tool.com API에서 DPS 점수 추출 (브라우저 컨텍스트 내 API 호출)
  */
-async function scrapeAtoolScore(characterName) {
+async function scrapeAtoolScore(page, characterName) {
   console.log(`\n🎯 Fetching DPS score: ${characterName}`);
 
   try {
-    // API 직접 호출 (POST 요청)
-    const apiUrl = 'https://aion2tool.com/api/character/search';
-    const payload = {
-      race: SERVER_CONFIG.race,      // 2 = 마족
-      server_id: SERVER_CONFIG.serverId,  // 2004 = 루미엘
+    // 브라우저 컨텍스트 내에서 API 호출 (쿠키 자동 포함)
+    const result = await page.evaluate(async (payload) => {
+      try {
+        const response = await fetch('https://aion2tool.com/api/character/search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          return { error: `${response.status} ${response.statusText}` };
+        }
+
+        const data = await response.json();
+        return { success: true, data };
+      } catch (err) {
+        return { error: err.message };
+      }
+    }, {
+      race: SERVER_CONFIG.race,
+      server_id: SERVER_CONFIG.serverId,
       keyword: characterName
-    };
-
-    console.log(`   → API: ${apiUrl}`);
-    console.log(`   → Payload: ${JSON.stringify(payload)}`);
-
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Origin': 'https://aion2tool.com',
-        'Referer': 'https://aion2tool.com/'
-      },
-      body: JSON.stringify(payload)
     });
 
-    if (!response.ok) {
-      console.log(`   ❌ API 요청 실패: ${response.status} ${response.statusText}`);
+    if (result.error) {
+      console.log(`   ❌ API 요청 실패: ${result.error}`);
       return null;
     }
 
-    const data = await response.json();
     console.log('   ✅ API 응답 수신');
+    const data = result.data;
 
     // 응답에서 캐릭터 데이터 찾기
     if (data && data.data) {
@@ -291,8 +295,41 @@ async function main() {
     }
   });
 
-  // 공식 사이트용 페이지 인스턴스 생성
-  const officialPage = await context.newPage();
+  // 페이지 인스턴스 생성
+  const officialPage = await context.newPage();  // 공식 사이트용
+  const atoolPage = await context.newPage();     // aion2tool.com API 호출용
+
+  // aion2tool.com 메인 페이지 로드 (Cloudflare 쿠키 획득)
+  console.log('🌐 aion2tool.com 메인 페이지 로드 중...');
+  try {
+    await atoolPage.goto('https://aion2tool.com/', {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000
+    });
+
+    // Cloudflare 챌린지 확인 및 대기
+    const hasCloudflare = await atoolPage.evaluate(() => {
+      const bodyText = document.body.textContent || '';
+      return bodyText.includes('Checking your browser') ||
+             bodyText.includes('사람인지 확인하는 중') ||
+             bodyText.includes('Just a moment');
+    });
+
+    if (hasCloudflare) {
+      console.log('   ⏳ Cloudflare 챌린지 대기 중... (최대 30초)');
+      await atoolPage.waitForFunction(() => {
+        const bodyText = document.body.textContent || '';
+        return !bodyText.includes('Checking your browser') &&
+               !bodyText.includes('사람인지 확인하는 중') &&
+               !bodyText.includes('Just a moment');
+      }, { timeout: 30000 });
+    }
+
+    console.log('   ✅ aion2tool.com 준비 완료 (쿠키 획득)\n');
+  } catch (e) {
+    console.log('   ⚠️ aion2tool.com 로드 실패 - DPS 점수 수집 불가능');
+    console.log(`   ℹ️ 에러: ${e.message}\n`);
+  }
 
   const results = [];
 
@@ -302,8 +339,8 @@ async function main() {
     const result = await scrapeCharacter(officialPage, char.name);
 
     if (result) {
-      // 2. aion2tool.com API에서 DPS 점수 수집
-      const dpsScore = await scrapeAtoolScore(char.name);
+      // 2. aion2tool.com API에서 DPS 점수 수집 (브라우저 컨텍스트 내)
+      const dpsScore = await scrapeAtoolScore(atoolPage, char.name);
 
       // 결과에 DPS 점수 추가
       result.dpsScore = dpsScore;
