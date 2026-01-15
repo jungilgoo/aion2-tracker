@@ -1,18 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
-import crypto from 'crypto';
 
-// 비밀번호 해싱 함수
-function hashPassword(password: string): string {
-  const salt = process.env.PASSWORD_SALT || '';
-  return crypto.createHmac('sha256', salt).update(password).digest('hex');
+// 관리자 비밀번호 검증 함수
+function verifyAdminPassword(password: string): boolean {
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    console.warn('ADMIN_PASSWORD 환경 변수가 설정되지 않았습니다!');
+    return false;
+  }
+  return password === adminPassword;
 }
 
-// POST - 캐릭터 추가
+// POST - 캐릭터 추가 (누구나 가능)
 export async function POST(request: NextRequest) {
   try {
-    const { name, password } = await request.json();
+    const { name } = await request.json();
 
     if (!name) {
       return NextResponse.json(
@@ -37,15 +40,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 비밀번호 해싱 (선택사항)
-    const passwordHash = password ? hashPassword(password) : null;
-
     // 새 캐릭터 추가
     const { error } = await supabaseAdmin
       .from('characters')
       .insert({
         name,
-        password_hash: passwordHash,
         server: '마족 루미엘',
       });
 
@@ -71,7 +70,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE - 캐릭터 삭제
+// DELETE - 캐릭터 삭제 (관리자 비밀번호 필요)
 export async function DELETE(request: NextRequest) {
   try {
     const { name, password } = await request.json();
@@ -83,10 +82,25 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // 관리자 비밀번호 검증
+    if (!password) {
+      return NextResponse.json(
+        { message: '관리자 비밀번호가 필요합니다' },
+        { status: 403 }
+      );
+    }
+
+    if (!verifyAdminPassword(password)) {
+      return NextResponse.json(
+        { message: '관리자 비밀번호가 일치하지 않습니다' },
+        { status: 403 }
+      );
+    }
+
     // 캐릭터 찾기
     const { data: character } = await supabaseAdmin
       .from('characters')
-      .select('id, password_hash')
+      .select('id')
       .eq('name', name)
       .single();
 
@@ -95,17 +109,6 @@ export async function DELETE(request: NextRequest) {
         { message: '캐릭터를 찾을 수 없습니다' },
         { status: 404 }
       );
-    }
-
-    // 비밀번호 검증 (설정되어 있는 경우)
-    if (character.password_hash && password) {
-      const inputHash = hashPassword(password);
-      if (inputHash !== character.password_hash) {
-        return NextResponse.json(
-          { message: '비밀번호가 일치하지 않습니다' },
-          { status: 403 }
-        );
-      }
     }
 
     // 캐릭터 삭제 (CASCADE로 히스토리도 자동 삭제됨)

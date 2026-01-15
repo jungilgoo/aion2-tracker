@@ -189,6 +189,7 @@ function calculateChangeFromHistory(
 export default function CharacterList({ characters }: { characters: Character[] }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState<string | null>(null);
+  const [deletePassword, setDeletePassword] = useState('');
   const [isMounted, setIsMounted] = useState(false);
   const [sortMode, setSortMode] = useState<'itemLevel' | 'dpsScore'>('itemLevel');
   const router = useRouter();
@@ -228,18 +229,23 @@ export default function CharacterList({ characters }: { characters: Character[] 
   const handleDelete = async () => {
     if (!characterToDelete) return;
 
+    if (!deletePassword) {
+      toast.error('관리자 비밀번호를 입력해주세요');
+      return;
+    }
+
     try {
       const response = await fetch('/api/characters', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name: characterToDelete }),
+        body: JSON.stringify({ name: characterToDelete, password: deletePassword }),
       });
 
       if (response.ok) {
         toast.success('캐릭터가 삭제되었습니다');
-        router.refresh(); // 서버 컴포넌트만 새로고침 (빠름!)
+        router.refresh();
       } else {
         const error = await response.json();
         toast.error(error.message || '삭제 실패');
@@ -250,6 +256,7 @@ export default function CharacterList({ characters }: { characters: Character[] 
 
     setShowDeleteConfirm(false);
     setCharacterToDelete(null);
+    setDeletePassword('');
   };
 
   if (characters.length === 0) {
@@ -435,9 +442,17 @@ export default function CharacterList({ characters }: { characters: Character[] 
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-xl font-semibold mb-4">캐릭터 삭제</h3>
-            <p className="text-gray-400 mb-6">
+            <p className="text-gray-400 mb-4">
               "{characterToDelete}"를 정말 삭제하시겠습니까?
             </p>
+            <input
+              type="password"
+              placeholder="관리자 비밀번호"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-red-500 mb-4"
+              onKeyDown={(e) => e.key === 'Enter' && handleDelete()}
+            />
             <div className="flex gap-2">
               <button
                 onClick={handleDelete}
@@ -449,6 +464,7 @@ export default function CharacterList({ characters }: { characters: Character[] 
                 onClick={() => {
                   setShowDeleteConfirm(false);
                   setCharacterToDelete(null);
+                  setDeletePassword('');
                 }}
                 className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded transition-colors"
               >
