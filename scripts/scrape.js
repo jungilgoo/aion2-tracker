@@ -1,5 +1,9 @@
-const { chromium } = require('playwright');
+const { chromium } = require('playwright-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const { createClient } = require('@supabase/supabase-js');
+
+// Stealth 플러그인 적용 (봇 감지 우회)
+chromium.use(StealthPlugin());
 
 // 환경 변수 로드 (.env 파일이 있는 경우)
 try {
