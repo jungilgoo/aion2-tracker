@@ -154,243 +154,74 @@ async function scrapeCharacter(page, characterName) {
 }
 
 /**
- * aion2tool.com에서 DPS 점수 추출 (URL 직접 접근 방식)
+ * aion2tool.com API에서 DPS 점수 추출 (직접 API 호출 방식)
  */
-async function scrapeAtoolScore(page, characterName) {
+async function scrapeAtoolScore(characterName) {
   console.log(`\n🎯 Fetching DPS score: ${characterName}`);
 
   try {
-    // URL 직접 구성 (서버 ID: 2004 = 루미엘)
-    const characterUrl = `https://aion2tool.com/char/serverid=2004/${encodeURIComponent(characterName)}`;
-    console.log(`   → ${characterUrl}`);
+    // API 직접 호출 (POST 요청)
+    const apiUrl = 'https://aion2tool.com/api/character/search';
+    const payload = {
+      race: SERVER_CONFIG.race,      // 2 = 마족
+      server_id: SERVER_CONFIG.serverId,  // 2004 = 루미엘
+      keyword: characterName
+    };
 
-    // 페이지 로드 (간단하게)
-    await page.goto(characterUrl, {
-      waitUntil: 'domcontentloaded',
-      timeout: 30000
+    console.log(`   → API: ${apiUrl}`);
+    console.log(`   → Payload: ${JSON.stringify(payload)}`);
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Origin': 'https://aion2tool.com',
+        'Referer': 'https://aion2tool.com/'
+      },
+      body: JSON.stringify(payload)
     });
 
-    console.log('   ✓ 페이지 로드 완료');
+    if (!response.ok) {
+      console.log(`   ❌ API 요청 실패: ${response.status} ${response.statusText}`);
+      return null;
+    }
 
-    // Cloudflare 챌린지 체크 및 대기
-    console.log('   🔍 Cloudflare 체크 중...');
-    const hasCloudflare = await page.evaluate(() => {
-      const bodyText = document.body.textContent || '';
-      return bodyText.includes('Checking your browser') ||
-             bodyText.includes('사람인지 확인하는 중') ||
-             bodyText.includes('Just a moment');
-    });
+    const data = await response.json();
+    console.log('   ✅ API 응답 수신');
 
-    if (hasCloudflare) {
-      console.log('   ⏳ Cloudflare 챌린지 감지 - 통과 대기 중... (최대 45초)');
-      try {
-        // Cloudflare 챌린지가 사라질 때까지 대기
-        await page.waitForFunction(() => {
-          const bodyText = document.body.textContent || '';
-          return !bodyText.includes('Checking your browser') &&
-                 !bodyText.includes('사람인지 확인하는 중') &&
-                 !bodyText.includes('Just a moment');
-        }, { timeout: 45000 });
-        console.log('   ✅ Cloudflare 챌린지 통과');
+    // 응답에서 캐릭터 데이터 찾기
+    if (data && data.data) {
+      // 정확한 닉네임 매칭
+      const character = data.data.find(char => char.nickname === characterName);
 
-        // 챌린지 통과 후 추가 대기 (페이지 리로드 완료)
-        await page.waitForTimeout(2000);
-      } catch (e) {
-        console.log('   ❌ Cloudflare 챌린지 타임아웃 (45초)');
-        console.log('   ℹ️  봇으로 감지되었을 가능성이 높습니다');
+      if (character) {
+        const combatScore = character.combat_score;
+        const combatScoreMax = character.combat_score_max;
 
-        // 디버깅용 스크린샷
-        try {
-          await page.screenshot({ path: `debug-cloudflare-${characterName}.png`, fullPage: false });
-          console.log(`   📸 스크린샷 저장: debug-cloudflare-${characterName}.png`);
-        } catch (err) {
-          console.log(`   ⚠️  스크린샷 저장 실패`);
+        if (combatScore !== null && combatScore !== undefined) {
+          console.log(`   ✅ Combat Score: ${combatScore.toLocaleString()}`);
+          if (combatScoreMax) {
+            console.log(`   ℹ️  Max Score: ${combatScoreMax.toLocaleString()}`);
+          }
+          return combatScore;
+        } else {
+          console.log(`   ⚠️  캐릭터 발견했지만 Combat Score 없음`);
+          return null;
         }
-
+      } else {
+        console.log(`   ⚠️  "${characterName}" 캐릭터를 찾을 수 없습니다`);
+        console.log(`   ℹ️  검색 결과: ${data.data.length}개`);
+        if (data.data.length > 0) {
+          console.log(`   ℹ️  첫 번째 결과: ${data.data[0].nickname}`);
+        }
         return null;
       }
     } else {
-      console.log('   ✅ Cloudflare 챌린지 없음');
-    }
-
-    // SPA 라우팅 완료 대기: JavaScript 실행 시간 확보
-    console.log('   ⏳ SPA 라우팅 대기 중...');
-
-    // JavaScript 실행을 위한 충분한 대기 시간
-    await page.waitForTimeout(5000);
-
-    // URL 확인: 실제로 캐릭터 페이지로 라우팅되었는지
-    const currentUrl = page.url();
-    console.log(`   ℹ️  현재 URL: ${currentUrl}`);
-
-    // 메인 페이지로 리다이렉트되었는지 체크
-    if (currentUrl === 'https://aion2tool.com/' || currentUrl === 'https://aion2tool.com') {
-      console.log('   ⚠️  메인 페이지로 리다이렉트됨 - SPA 라우팅 실패');
-      console.log('   ℹ️  봇으로 감지되어 JavaScript 라우팅이 차단되었을 가능성');
-
-      // 디버깅용 스크린샷
-      try {
-        await page.screenshot({ path: `debug-routing-failed-${characterName}.png`, fullPage: false });
-        console.log(`   📸 스크린샷 저장: debug-routing-failed-${characterName}.png`);
-      } catch (err) {
-        console.log(`   ⚠️  스크린샷 저장 실패`);
-      }
-
+      console.log(`   ⚠️  API 응답에 데이터 없음`);
       return null;
     }
-
-    try {
-      // DPS 점수 요소가 있는지 확인
-      await page.waitForSelector('#dps-score-value', {
-        timeout: 10000,
-        state: 'attached'
-      });
-      console.log('   ✓ 캐릭터 페이지 로드됨');
-    } catch (e) {
-      console.log('   ⚠️  캐릭터 페이지 로드 타임아웃 (20초)');
-
-      // URL 확인
-      const currentUrl = page.url();
-      console.log(`   ℹ️  현재 URL: ${currentUrl}`);
-
-      // 디버깅용 스크린샷 저장
-      try {
-        await page.screenshot({ path: `debug-atool-${characterName}.png`, fullPage: false });
-        console.log(`   📸 스크린샷 저장: debug-atool-${characterName}.png`);
-      } catch (err) {
-        console.log(`   ⚠️  스크린샷 저장 실패: ${err.message}`);
-      }
-
-      // 메인 페이지로 리다이렉트되었거나 캐릭터가 없음
-      console.log(`   ⚠️  캐릭터를 찾을 수 없습니다`);
-      console.log(`   ℹ️  "${characterName}" 캐릭터가 aion2tool.com에 등록되지 않았을 수 있습니다`);
-      return null;
-    }
-
-    // 추가 대기 (JavaScript 실행 완료)
-    await page.waitForTimeout(2000);
-
-    // 디버깅용 스크린샷 저장 (성공 케이스도 확인)
-    try {
-      await page.screenshot({ path: `debug-success-${characterName}.png`, fullPage: false });
-      console.log(`   📸 페이지 로드 스크린샷: debug-success-${characterName}.png`);
-    } catch (err) {
-      console.log(`   ⚠️  스크린샷 저장 실패`);
-    }
-
-    // DPS 점수 추출 (#dps-score-value)
-    console.log('   → DPS 점수 추출 중...');
-
-    // Polling 방식: DPS 점수가 로드될 때까지 대기
-    let dpsScore = null;
-    const maxAttempts = 15; // 최대 15회 (7.5초)
-    const pollInterval = 500;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const result = await page.evaluate(() => {
-        const scoreElement = document.querySelector('#dps-score-value');
-        if (scoreElement) {
-          const scoreText = scoreElement.textContent.trim();
-
-          // 빈 문자열은 에러
-          if (scoreText === '') {
-            return { found: false, isEmpty: true };
-          }
-
-          // "-"는 로딩 중 또는 데이터 없음 (계속 polling)
-          if (scoreText === '-') {
-            return { found: false, loading: true, text: scoreText };
-          }
-
-          // 실제 숫자 값
-          if (scoreText) {
-            const score = parseInt(scoreText.replace(/,/g, ''));
-            return { found: true, score: isNaN(score) ? null : score, text: scoreText };
-          }
-        }
-
-        // 에러 메시지 확인
-        const errorElement = document.querySelector('.error-message, .not-found, [class*="error"]');
-        if (errorElement) {
-          return { found: false, error: errorElement.textContent.trim() };
-        }
-
-        return { found: false, score: null };
-      });
-
-      // 실제 DPS 점수를 찾음
-      if (result.found && result.score !== null) {
-        dpsScore = result.score;
-        console.log(`   ✅ DPS Score: ${dpsScore.toLocaleString()} (${attempt}회 시도)`);
-        break;
-      }
-
-      // 에러 메시지 발견
-      if (result.error) {
-        console.log(`   ⚠️  에러: ${result.error}`);
-        break;
-      }
-
-      // "-" 값 (로딩 중) - 계속 polling
-      if (result.loading) {
-        // 첫 시도에서만 로그 출력
-        if (attempt === 1) {
-          console.log(`   ⏳ DPS 점수 로딩 중... (값: "-", API 응답 대기)`);
-        }
-        // 계속 대기
-      }
-
-      // 마지막 시도까지 "-"만 나오면 데이터 없음으로 판단
-      if (attempt === maxAttempts) {
-        if (result.loading) {
-          console.log(`   ⚠️  DPS 데이터 없음 (값: "-")`);
-          console.log(`   ℹ️  캐릭터 정보는 있지만 DPS 점수가 기록되지 않았습니다`);
-          break;
-        }
-
-        console.log('   ⚠️  DPS 점수를 찾을 수 없습니다 (타임아웃)');
-
-        // 디버깅: 페이지 상태 확인
-        console.log('   🔍 페이지 상태 확인 중...');
-        const debugInfo = await page.evaluate(() => {
-          const scoreEl = document.querySelector('#dps-score-value');
-
-          return {
-            url: window.location.href,
-            title: document.title,
-            hasScoreElement: !!scoreEl,
-            scoreElementText: scoreEl ? scoreEl.textContent : 'not found',
-            scoreElementHTML: scoreEl ? scoreEl.innerHTML : 'not found',
-            bodyPreview: document.body?.textContent?.substring(0, 300) || '',
-            allIdsWithDps: Array.from(document.querySelectorAll('[id*="dps"]')).map(el => ({
-              id: el.id,
-              text: el.textContent?.substring(0, 50)
-            }))
-          };
-        });
-
-        console.log('   📋 디버그 정보:');
-        console.log(`      - URL: ${debugInfo.url}`);
-        console.log(`      - Title: ${debugInfo.title}`);
-        console.log(`      - #dps-score-value 존재: ${debugInfo.hasScoreElement}`);
-        console.log(`      - 텍스트: "${debugInfo.scoreElementText}"`);
-        console.log(`      - HTML: ${debugInfo.scoreElementHTML}`);
-        console.log(`      - Body 일부: ${debugInfo.bodyPreview.substring(0, 200)}`);
-        console.log(`      - DPS 관련 요소들:`, JSON.stringify(debugInfo.allIdsWithDps));
-
-        // 스크린샷 저장
-        try {
-          await page.screenshot({ path: `debug-timeout-${characterName}.png`, fullPage: true });
-          console.log(`   📸 타임아웃 스크린샷 저장: debug-timeout-${characterName}.png`);
-        } catch (e) {
-          console.log(`   ⚠️  스크린샷 저장 실패`);
-        }
-      }
-
-      await page.waitForTimeout(pollInterval);
-    }
-
-    return dpsScore;
 
   } catch (error) {
     console.error(`   ❌ Error fetching DPS score for ${characterName}:`, error.message);
@@ -424,9 +255,9 @@ async function main() {
     return;
   }
 
-  // 봇 감지 우회를 위한 브라우저 설정 (Headful 모드 + xvfb)
+  // 브라우저 설정 (공식 사이트만 접속, aion2tool.com은 API 직접 호출)
   const browser = await chromium.launch({
-    headless: false,  // Headful 모드 (xvfb 가상 디스플레이 사용)
+    headless: true,  // API 호출 방식으로 변경되어 headless 가능
     args: [
       '--disable-blink-features=AutomationControlled',  // 자동화 감지 비활성화
       '--no-sandbox',
@@ -460,61 +291,8 @@ async function main() {
     }
   });
 
-  // 두 개의 페이지 인스턴스 생성
-  const officialPage = await context.newPage();  // 공식 사이트용
-  const atoolPage = await context.newPage();     // aion2tool.com용 (URL 직접 접근)
-
-  // aion2tool.com 봇 감지 우회 (강화!)
-  await atoolPage.addInitScript(() => {
-    // navigator.webdriver 속성 완전 제거
-    Object.defineProperty(navigator, 'webdriver', {
-      get: () => undefined
-    });
-
-    delete navigator.__proto__.webdriver;
-
-    // Chrome 객체 추가 (더 상세하게)
-    window.chrome = {
-      runtime: {},
-      loadTimes: function() {},
-      csi: function() {},
-      app: {}
-    };
-
-    // plugins 배열 추가
-    Object.defineProperty(navigator, 'plugins', {
-      get: () => [1, 2, 3, 4, 5]
-    });
-
-    // languages 설정
-    Object.defineProperty(navigator, 'languages', {
-      get: () => ['ko-KR', 'ko', 'en-US', 'en']
-    });
-
-    // Permissions API 오버라이드
-    const originalQuery = window.navigator.permissions.query;
-    window.navigator.permissions.query = (parameters) => (
-      parameters.name === 'notifications' ?
-        Promise.resolve({ state: Notification.permission }) :
-        originalQuery(parameters)
-    );
-
-    // 추가 속성들
-    Object.defineProperty(navigator, 'hardwareConcurrency', {
-      get: () => 8
-    });
-
-    Object.defineProperty(navigator, 'deviceMemory', {
-      get: () => 8
-    });
-
-    // iframe 감지 우회
-    Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', {
-      get: function() {
-        return window;
-      }
-    });
-  });
+  // 공식 사이트용 페이지 인스턴스 생성
+  const officialPage = await context.newPage();
 
   const results = [];
 
@@ -524,8 +302,8 @@ async function main() {
     const result = await scrapeCharacter(officialPage, char.name);
 
     if (result) {
-      // 2. aion2tool.com에서 DPS 점수 수집 (URL 직접 접근)
-      const dpsScore = await scrapeAtoolScore(atoolPage, char.name);
+      // 2. aion2tool.com API에서 DPS 점수 수집
+      const dpsScore = await scrapeAtoolScore(char.name);
 
       // 결과에 DPS 점수 추가
       result.dpsScore = dpsScore;
