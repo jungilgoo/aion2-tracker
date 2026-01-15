@@ -209,13 +209,36 @@ async function scrapeAtoolScore(page, characterName) {
       console.log('   ✅ Cloudflare 챌린지 없음');
     }
 
-    // SPA 라우팅 완료 대기: #dps-score-value 요소가 나타날 때까지
+    // SPA 라우팅 완료 대기: JavaScript 실행 시간 확보
     console.log('   ⏳ SPA 라우팅 대기 중...');
 
+    // JavaScript 실행을 위한 충분한 대기 시간
+    await page.waitForTimeout(5000);
+
+    // URL 확인: 실제로 캐릭터 페이지로 라우팅되었는지
+    const currentUrl = page.url();
+    console.log(`   ℹ️  현재 URL: ${currentUrl}`);
+
+    // 메인 페이지로 리다이렉트되었는지 체크
+    if (currentUrl === 'https://aion2tool.com/' || currentUrl === 'https://aion2tool.com') {
+      console.log('   ⚠️  메인 페이지로 리다이렉트됨 - SPA 라우팅 실패');
+      console.log('   ℹ️  봇으로 감지되어 JavaScript 라우팅이 차단되었을 가능성');
+
+      // 디버깅용 스크린샷
+      try {
+        await page.screenshot({ path: `debug-routing-failed-${characterName}.png`, fullPage: false });
+        console.log(`   📸 스크린샷 저장: debug-routing-failed-${characterName}.png`);
+      } catch (err) {
+        console.log(`   ⚠️  스크린샷 저장 실패`);
+      }
+
+      return null;
+    }
+
     try {
-      // 최대 20초 동안 DPS 점수 요소가 나타날 때까지 대기
+      // DPS 점수 요소가 있는지 확인
       await page.waitForSelector('#dps-score-value', {
-        timeout: 20000,
+        timeout: 10000,
         state: 'attached'
       });
       console.log('   ✓ 캐릭터 페이지 로드됨');
